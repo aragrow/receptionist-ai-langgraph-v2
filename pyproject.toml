@@ -1,3 +1,5 @@
+
+
 [project]
 name = "ai-receptionist-v2"
 version = "0.1.0"
@@ -18,6 +20,7 @@ dependencies = [
     "asyncio-throttle",
     "attrs",
     "backoff",
+    "bson>=0.5.10",
     "cachetools",
     "certifi",
     "charset-normalizer",
@@ -52,7 +55,9 @@ dependencies = [
     "mando",
     "markdown-it-py",
     "mdurl",
+    "motor>=3.7.1",
     "multidict",
+    "nltk>=3.9.1",
     "numpy",
     "orjson",
     "ormsgpack",
@@ -74,6 +79,7 @@ dependencies = [
     "requests-toolbelt",
     "rich",
     "rsa",
+    "scikit-learn>=1.7.2",
     "six",
     "sniffio",
     "SQLAlchemy",
@@ -86,7 +92,7 @@ dependencies = [
     "uv",
     "xxhash",
     "yarl",
-    "zstandard"
+    "zstandard",
 ]
 
 [project.optional-dependencies]
