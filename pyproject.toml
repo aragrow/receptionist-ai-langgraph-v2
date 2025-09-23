@@ -1,0 +1,133 @@
+[project]
+name = "ai-receptionist-v2"
+version = "0.1.0"
+description = "AI Receptionist system with Twilio integration, MongoDB, and LLM-based context building."
+authors = [
+    { name = "David Arago", email = "davidarago@aragrow.me" }
+]
+requires-python = ">=3.10"
+
+# Core runtime dependencies
+dependencies = [
+    "aiofiles",
+    "aiohappyeyeballs",
+    "aiohttp",
+    "aiosignal",
+    "annotated-types",
+    "anyio",
+    "asyncio-throttle",
+    "attrs",
+    "backoff",
+    "cachetools",
+    "certifi",
+    "charset-normalizer",
+    "click",
+    "colorama",
+    "dill",
+    "filetype",
+    "frozenlist",
+    "google-ai-generativelanguage",
+    "google-api-core",
+    "google-auth",
+    "googleapis-common-protos",
+    "gql",
+    "graphql-core",
+    "grpcio",
+    "grpcio-status",
+    "h11",
+    "httpcore",
+    "httpx",
+    "idna",
+    "jsonpatch",
+    "jsonpointer",
+    "langchain",
+    "langchain-core",
+    "langchain-google-genai",
+    "langchain-text-splitters",
+    "langgraph",
+    "langgraph-checkpoint",
+    "langgraph-prebuilt",
+    "langgraph-sdk",
+    "langsmith",
+    "mando",
+    "markdown-it-py",
+    "mdurl",
+    "multidict",
+    "numpy",
+    "orjson",
+    "ormsgpack",
+    "packaging",
+    "pandas",
+    "propcache",
+    "proto-plus",
+    "protobuf",
+    "pyasn1",
+    "pyasn1_modules",
+    "pydantic",
+    "pydantic-settings",
+    "pydantic_core",
+    "python-dateutil",
+    "python-dotenv",
+    "pytz",
+    "PyYAML",
+    "requests",
+    "requests-toolbelt",
+    "rich",
+    "rsa",
+    "six",
+    "sniffio",
+    "SQLAlchemy",
+    "structlog",
+    "tenacity",
+    "typing-inspection",
+    "typing_extensions",
+    "tzdata",
+    "urllib3",
+    "uv",
+    "xxhash",
+    "yarl",
+    "zstandard"
+]
+
+[project.optional-dependencies]
+# Developer tools
+dev = [
+    "mypy",
+    "mypy_extensions",
+    "pathspec",
+    "platformdirs",
+    "tomlkit",
+]
+
+# Linting & formatting
+linting = [
+    "black",
+    "isort",
+    "flake8",
+    "pylint",
+    "mccabe",
+    "pycodestyle",
+    "pyflakes",
+    "radon",
+]
+
+# Testing
+testing = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-mock",
+]
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+
+[tool.pylint]
+disable = ["C0114", "C0115", "C0116"]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
