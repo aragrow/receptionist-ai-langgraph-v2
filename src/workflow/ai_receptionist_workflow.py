@@ -2,7 +2,6 @@
 """LangGraph workflow for AI Receptionist analysis."""
 
 from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolExecutor
 
 from src.models.workflow_models import WorkflowState
 from src.services.database_service import DatabaseService
