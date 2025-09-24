@@ -224,6 +224,7 @@ The AI receptionist should be able to answer **client and vendor questions** whi
     xxhash
     yarl
     zstandard
+    google.generativeai 
 
     #### Dev / Linting / Testing
     mypy
@@ -271,4 +272,28 @@ The AI receptionist should be able to answer **client and vendor questions** whi
     All data should be sanaized before being saved to the DB.
     All data should be escaped before displaying to the screen.
     Remove the Stop Words from the text to vectorize.
+    I want to use google.generativeai to generate embeddings.  The model should be: models/text-embedding-004
+    I want to use google.generativeai to chat with the data.  The model should be: gemini-1.5-flash
     If the text to vectorize is over 1000 tokens, then break in chucks, with 100 tokens overlap.
+
+# App Hierchacy Output
+
+ .env
+ README.MD                                
+ config/settings.py                       
+ main.py                                  
+ pyproject.toml                           
+ src/models/database_models.py            
+ src/models/workflow_models.py           
+ src/nodes/context_builder.py            
+ src/nodes/identity_checker.py            
+ src/nodes/intent_analyzer.py            
+ src/nodes/response_generator.py          
+ src/services/context_service.py          
+ src/services/database_service.py         
+ src/services/embedding_service.py        
+ src/utilities/phone_utils.py             
+ src/utilities/text_processing.py         
+ src/workflow/ai_receptionist_workflow.py 
+ src/workflow/workflow_runner.py          
+ tests/test_workflow.py                   

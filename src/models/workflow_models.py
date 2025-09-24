@@ -19,10 +19,13 @@ class Intent(str, Enum):
     """Call intents."""
     
     GENERAL_INQUIRY = "general_inquiry"
+    SERVICE_INQUIRY = "service_inquiry"
     SERVICE_REQUEST = "service_request"
     STATUS_CHECK = "status_check"
     COMPLAINT = "complaint"
     SALES_INQUIRY = "sales_inquiry"
+    SCHEDULE_UPDATE = "schedule_update"
+    OTHER = "other"
 
 
 class WorkflowState(BaseModel):
