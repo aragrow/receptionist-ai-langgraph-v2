@@ -1,6 +1,7 @@
 # ==================== src/nodes/intent_analyzer.py ====================
 """Intent analyzer node with Google Gemini integration."""
 import logging
+import json
 # Get a logger instance for your module
 logger = logging.getLogger(__name__)
 # Set the logging level (e.g., INFO, DEBUG, WARNING, ERROR, CRITICAL)
@@ -50,39 +51,44 @@ class IntentAnalyzer:
         state.agent_prompt = prompt
         return state
     
-    async def _analyze_with_gemini(self, state: WorkflowState) -> str:
+    async def _analyze_with_gemini(self, state: WorkflowState) -> WorkflowState:
         print("""Use Google Gemini to analyze intent.""")
         try:
-            state = await self._create_intent_prompt(state)
+            workflow_state = await self._create_intent_prompt(state)
 
             # Configure Gemini model
             model = genai.GenerativeModel(self.model_name)
             
             # Generate response
-            response = model.generate_content(state.agent_prompt)
+            response = model.generate_content(workflow_state.agent_prompt)
             
             # Parse response
             intent_value = response.text.strip().lower()
-    
-            return intent_value
+            workflow_state.intent = intent_value
+            print(f"Intent: {intent_value}")
+            workflow_state.error_message = None
             
         except Exception as e:
             print(f"⚠️ Gemini intent analysis failed: {e}")
-            return "Customer Service"
-    
+            workflow_state.error_message = f"⚠️ Gemini intent analysis failed: {e}""
+            workflow_state.intent = "Customer Service"`
+            
+        return workflow_state
+
     async def __call__(self, state: WorkflowState) -> WorkflowState:
+        workflow_state = state
         """Analyze caller intent from speech using Gemini + regex fallback."""
         if not state.speech_text:
-            state.intent = "Customer Service"
+            workflow_state.intent = "Customer Service"
             return state
         
         try:
             # Primary: Use Gemini for intent analysis
-            state.intent = await self._analyze_with_gemini(state)
+            workflow_state = await self._analyze_with_gemini(state)
             
         except Exception as e:
             # Fallback: Use regex patterns
-            state.error_message = f"Intent analysis error: {str(e)}"
-            state.intent = self._fallback_regex_analysis(state.speech_text)
+            workflow_state.error_message = f"Intent analysis error: {str(e)}"
+            workflow_state.intent = self._fallback_regex_analysis(state.speech_text)
         
-        return state
+        return workflow_state
