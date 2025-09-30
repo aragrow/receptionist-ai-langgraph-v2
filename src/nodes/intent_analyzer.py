@@ -70,8 +70,8 @@ class IntentAnalyzer:
             
         except Exception as e:
             print(f"⚠️ Gemini intent analysis failed: {e}")
-            workflow_state.error_message = f"⚠️ Gemini intent analysis failed: {e}""
-            workflow_state.intent = "Customer Service"`
+            workflow_state.error_message = f"⚠️ Gemini intent analysis failed: {e}"
+            workflow_state.intent = "Customer Service"
             
         return workflow_state
 

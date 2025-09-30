@@ -12066,3 +12066,2891 @@ index 4376103..388ba2c 100644
  version = "2.5.0"
 ```
 
+
+---
+## Branch: dev-6
+**Created:** 2025-09-29 23:31:38  
+**Commit Message:** Next work on response node.
+
+### Files Changed:
+```
+ Project Requirements.md                            |   8 +
+ branch-summary.md                                  | 293 ++++++++++++++++++++
+ main.py                                            |  46 +++-
+ pyproject.toml                                     |   3 +
+ ...29_201416_appointment_scheduling_13388582100.md |  17 ++
+ ...29_201729_appointment_scheduling_13388582100.md |  17 ++
+ ...29_202135_appointment_scheduling_13388582100.md |  17 ++
+ ...29_202412_appointment_scheduling_13388582100.md |  17 ++
+ ...29_202501_appointment_scheduling_13388582100.md |  17 ++
+ ...29_202628_appointment_scheduling_13388582100.md |  17 ++
+ ...29_204510_appointment_scheduling_13388582100.md |  17 ++
+ ...29_204604_appointment_scheduling_13388582100.md |  17 ++
+ ...29_204657_appointment_scheduling_13388582100.md |  17 ++
+ ...29_204937_appointment_scheduling_13388582100.md |  17 ++
+ ...29_205534_appointment_scheduling_13388582100.md |  17 ++
+ ...29_205753_appointment_scheduling_13388582100.md |  17 ++
+ ...29_205853_appointment_scheduling_13388582100.md |  17 ++
+ ...29_210023_appointment_scheduling_13388582100.md |  17 ++
+ ...29_210345_appointment_scheduling_13388582100.md |  17 ++
+ ...29_210537_appointment_scheduling_13388582100.md |  17 ++
+ ...29_210715_appointment_scheduling_13388582100.md |  17 ++
+ ...29_211107_appointment_scheduling_13388582100.md |  17 ++
+ ...29_211247_appointment_scheduling_13388582100.md |  17 ++
+ src/models/database_models.py                      |  27 +-
+ src/models/workflow_models.py                      |   6 +
+ src/nodes/context_builder.py                       |   2 +-
+ src/nodes/identity_checker.py                      |  36 ++-
+ src/nodes/intent_analyzer.py                       | 104 ++++---
+ src/nodes/response_generator.py                    | 171 ++++++++----
+ src/services/context_service.py                    |  90 +++---
+ src/services/database_service.py                   |  43 ++-
+ src/services/embedding_service.py                  |  14 +-
+ src/utilities/generate_test_data.py                |  33 ++-
+ src/workflow/ai_receptionist_workflow.py           |  16 +-
+ src/workflow/workflow_runner.py                    |  19 +-
+ test_regeneration_instructions.md                  |  96 +++++++
+ tests/replicate_conversations.py                   | 239 ++++++++++++++++
+ tests/run_tests.py                                 | 305 +++++++++++++++++++++
+ tests/test_access_control.py                       |  14 +
+ tests/test_models.py                               |  26 ++
+ tests/test_nodes.py                                |  23 ++
+ tests/test_performance.py                          |  15 +
+ tests/test_regression.py                           |  18 ++
+ tests/test_services.py                             |  31 +++
+ tests/test_utilites.py                             |  20 ++
+ tests/tetst_integration.py                         |  18 ++
+ uv.lock                                            |  53 +++-
+ 47 files changed, 1917 insertions(+), 175 deletions(-)
+```
+
+### Code Changes:
+```diff
+diff --git a/Project Requirements.md b/Project Requirements.md
+index 2e62c8f..65142c2 100644
+--- a/Project Requirements.md	
++++ b/Project Requirements.md	
+@@ -275,7 +275,15 @@ The AI receptionist should be able to answer **client and vendor questions** whi
+     I want to use google.generativeai to generate embeddings.  The model should be: models/text-embedding-004
+     I want to use google.generativeai to chat with the data.  The model should be: gemini-1.5-flash
+     If the text to vectorize is over 1000 tokens, then break in chucks, with 100 tokens overlap.
++    Make sure that v2 of pydantic is implemented
++    Create test scripts using pytest to test all the functionality.  The tests must be controller by a single test service.
++    Each test should return to the test service whether or not the test passed, if not return message too.
+ 
++
++# Testing
++    create a list with all the recomended tests to run before promoting to production.
++    Use that list to create tests scripts, name them for what they do.
++    Create a master test script controller to run all tests.  Report the results in nice tabulated table.
+ # App Hierchacy Output
+ 
+  .env
+diff --git a/branch-summary.md b/branch-summary.md
+index 5f62c64..248c7aa 100644
+--- a/branch-summary.md
++++ b/branch-summary.md
+@@ -4599,3 +4599,296 @@ index 0000000..3598e70
+ +]
+ ```
+ 
++
++---
++## Branch: dev-4
++**Created:** 2025-09-23 22:15:13  
++**Commit Message:** Modify embedding to Google, modify md, and add basic test functionality.
++
++### Files Changed:
++```
++ branch-summary.md                        | 16 +++++++++++
++ changes to original code.md              | 25 +++++++++++++++++
++ pyproject.toml                           |  3 +-
++ src/models/database_models.py            | 25 +++++++++++------
++ src/workflow/ai_receptionist_workflow.py |  3 +-
++ uv.lock                                  | 47 ++++++++++++++++++++++++++++++--
++ 6 files changed, 105 insertions(+), 14 deletions(-)
++```
++
++### Code Changes:
++```diff
++diff --git a/branch-summary.md b/branch-summary.md
++index 8b40619..0fbcc72 100644
++--- a/branch-summary.md
+++++ b/branch-summary.md
++@@ -6,3 +6,19 @@ This file tracks branch creation and changes for LLM context restoration.
++ **Generated by:** GitHub Incremental Branch Creator  
++ **Last updated:** 2025-09-22 19:52:37
++ 
+++
+++---
+++## Branch: dev-2
+++**Created:** 2025-09-23 08:50:53  
+++**Commit Message:** Claude Code Produced Files
+++
+++### Files Changed:
+++```
+++No previous commit to compare
+++```
+++
+++### Code Changes:
+++```diff
+++No previous commit to compare
+++```
+++
++diff --git a/changes to original code.md b/changes to original code.md
++new file mode 100644
++index 0000000..8b83424
++--- /dev/null
+++++ b/changes to original code.md	
++@@ -0,0 +1,25 @@
+++# Changes to Original Code generated with Claude Code
+++
+++## === src/workflow/ai_receptionist_workflow.py ====
+++
+++Since in modern langgraph the ToolExecutor helper was removed or replaced, and you’re not actually using it anywhere inside your AIReceptionistWorkflow class, the simplest fix is to delete that import entirely.
+++
+++### Key changes:
+++
+++Removed the bad line from langgraph.prebuilt import ToolExeToolcutor.
+++
+++Nothing else needed, since you weren’t using ToolExecutor inside this workflow anyway.
+++
+++### Debug time: 5 minutes
+++
+++## === src/models/database_models.py ===
+++
+++Your codebase was written for Pydantic v1, where you could customize JSON schemas using __modify_schema__. In Pydantic v2, that was removed and replaced with __get_pydantic_json_schema__.
+++
+++### Key changes:
+++
+++Replaced __modify_schema__ → __get_pydantic_json_schema__.
+++
+++Converted class Config: into model_config = ConfigDict(...).
+++
+++### Debug time: 5 minutes
++\ No newline at end of file
++diff --git a/pyproject.toml b/pyproject.toml
++index 99eb50c..e84bddf 100644
++--- a/pyproject.toml
+++++ b/pyproject.toml
++@@ -27,6 +27,7 @@ dependencies = [
++     "click",
++     "colorama",
++     "dill",
+++    "fastapi>=0.117.1",
++     "filetype",
++     "frozenlist",
++     "google-ai-generativelanguage",
++@@ -49,7 +50,6 @@ dependencies = [
++     "langchain-text-splitters",
++     "langgraph",
++     "langgraph-checkpoint",
++-    "langgraph-prebuilt",
++     "langgraph-sdk",
++     "langsmith",
++     "mando",
++@@ -90,6 +90,7 @@ dependencies = [
++     "tzdata",
++     "urllib3",
++     "uv",
+++    "uvicorn>=0.37.0",
++     "xxhash",
++     "yarl",
++     "zstandard",
++diff --git a/src/models/database_models.py b/src/models/database_models.py
++index a4f7b47..ff6c434 100644
++--- a/src/models/database_models.py
+++++ b/src/models/database_models.py
++@@ -3,7 +3,9 @@
++ 
++ from datetime import datetime
++ from typing import Optional, List
++-from pydantic import BaseModel, Field
+++from pydantic import BaseModel, Field, ConfigDict
+++from pydantic.json_schema import JsonSchemaValue
+++from pydantic import GetJsonSchemaHandler
++ from bson import ObjectId
++ 
++ 
++@@ -21,8 +23,12 @@ class PyObjectId(ObjectId):
++         return ObjectId(v)
++     
++     @classmethod
++-    def __modify_schema__(cls, field_schema):
++-        field_schema.update(type="string")
+++    def __get_pydantic_json_schema__(
+++        cls, schema: JsonSchemaValue, handler: GetJsonSchemaHandler
+++    ) -> JsonSchemaValue:
+++        schema = handler(schema)
+++        schema.update(type="string")
+++        return schema
++ 
++ 
++ class BaseDocument(BaseModel):
++@@ -32,11 +38,12 @@ class BaseDocument(BaseModel):
++     created_at: datetime = Field(default_factory=datetime.utcnow)
++     updated_at: datetime = Field(default_factory=datetime.utcnow)
++     notes: Optional[str] = None
++-    
++-    class Config:
++-        allow_population_by_field_name = True
++-        arbitrary_types_allowed = True
++-        json_encoders = {ObjectId: str}
+++
+++    model_config = ConfigDict(
+++        populate_by_name=True,
+++        arbitrary_types_allowed=True,
+++        json_encoders={ObjectId: str}
+++    )
++ 
++ 
++ class Client(BaseDocument):
++@@ -111,4 +118,4 @@ class KnowledgeBase(BaseDocument):
++     entity_id: PyObjectId  # Reference to any entity
++     entity_type: str  # client, property, job, visit, vendor
++     content: str
++-    embedding: List[float] = Field(default_factory=list)
++\ No newline at end of file
+++    embedding: List[float] = Field(default_factory=list)
++diff --git a/src/workflow/ai_receptionist_workflow.py b/src/workflow/ai_receptionist_workflow.py
++index f1cda1b..fc1a2a0 100644
++--- a/src/workflow/ai_receptionist_workflow.py
+++++ b/src/workflow/ai_receptionist_workflow.py
++@@ -2,7 +2,6 @@
++ """LangGraph workflow for AI Receptionist analysis."""
++ 
++ from langgraph.graph import StateGraph, END
++-from langgraph.prebuilt import ToolExecutor
++ 
++ from src.models.workflow_models import WorkflowState
++ from src.services.database_service import DatabaseService
++@@ -67,4 +66,4 @@ class AIReceptionistWorkflow:
++         
++         # Run workflow
++         result = await self.workflow.ainvoke(initial_state)
++-        return result
+++        return result
++\ No newline at end of file
++diff --git a/uv.lock b/uv.lock
++index 3598e70..4376103 100644
++--- a/uv.lock
+++++ b/uv.lock
++@@ -29,6 +29,7 @@ dependencies = [
++     { name = "click" },
++     { name = "colorama" },
++     { name = "dill" },
+++    { name = "fastapi" },
++     { name = "filetype" },
++     { name = "frozenlist" },
++     { name = "google-ai-generativelanguage" },
++@@ -51,7 +52,6 @@ dependencies = [
++     { name = "langchain-text-splitters" },
++     { name = "langgraph" },
++     { name = "langgraph-checkpoint" },
++-    { name = "langgraph-prebuilt" },
++     { name = "langgraph-sdk" },
++     { name = "langsmith" },
++     { name = "mando" },
++@@ -93,6 +93,7 @@ dependencies = [
++     { name = "tzdata" },
++     { name = "urllib3" },
++     { name = "uv" },
+++    { name = "uvicorn" },
++     { name = "xxhash" },
++     { name = "yarl" },
++     { name = "zstandard" },
++@@ -141,6 +142,7 @@ requires-dist = [
++     { name = "click" },
++     { name = "colorama" },
++     { name = "dill" },
+++    { name = "fastapi", specifier = ">=0.117.1" },
++     { name = "filetype" },
++     { name = "flake8", marker = "extra == 'linting'" },
++     { name = "frozenlist" },
++@@ -165,7 +167,6 @@ requires-dist = [
++     { name = "langchain-text-splitters" },
++     { name = "langgraph" },
++     { name = "langgraph-checkpoint" },
++-    { name = "langgraph-prebuilt" },
++     { name = "langgraph-sdk" },
++     { name = "langsmith" },
++     { name = "mando" },
++@@ -219,6 +220,7 @@ requires-dist = [
++     { name = "tzdata" },
++     { name = "urllib3" },
++     { name = "uv" },
+++    { name = "uvicorn", specifier = ">=0.37.0" },
++     { name = "xxhash" },
++     { name = "yarl" },
++     { name = "zstandard" },
++@@ -601,6 +603,20 @@ wheels = [
++     { url = "https://files.pythonhosted.org/packages/36/f4/c6e662dade71f56cd2f3735141b265c3c79293c109549c1e6933b0651ffc/exceptiongroup-1.3.0-py3-none-any.whl", hash = "sha256:4d111e6e0c13d0644cad6ddaa7ed0261a0b36971f6d23e7ec9b4b9097da78a10", size = 16674, upload-time = "2025-05-10T17:42:49.33Z" },
++ ]
++ 
+++[[package]]
+++name = "fastapi"
+++version = "0.117.1"
+++source = { registry = "https://pypi.org/simple" }
+++dependencies = [
+++    { name = "pydantic" },
+++    { name = "starlette" },
+++    { name = "typing-extensions" },
+++]
+++sdist = { url = "https://files.pythonhosted.org/packages/7e/7e/d9788300deaf416178f61fb3c2ceb16b7d0dc9f82a08fdb87a5e64ee3cc7/fastapi-0.117.1.tar.gz", hash = "sha256:fb2d42082d22b185f904ca0ecad2e195b851030bd6c5e4c032d1c981240c631a", size = 307155, upload-time = "2025-09-20T20:16:56.663Z" }
+++wheels = [
+++    { url = "https://files.pythonhosted.org/packages/6d/45/d9d3e8eeefbe93be1c50060a9d9a9f366dba66f288bb518a9566a23a8631/fastapi-0.117.1-py3-none-any.whl", hash = "sha256:33c51a0d21cab2b9722d4e56dbb9316f3687155be6b276191790d8da03507552", size = 95959, upload-time = "2025-09-20T20:16:53.661Z" },
+++]
+++
++ [[package]]
++ name = "filetype"
++ version = "1.2.0"
++@@ -2633,6 +2649,19 @@ wheels = [
++     { url = "https://files.pythonhosted.org/packages/b8/d9/13bdde6521f322861fab67473cec4b1cc8999f3871953531cf61945fad92/sqlalchemy-2.0.43-py3-none-any.whl", hash = "sha256:1681c21dd2ccee222c2fe0bef671d1aef7c504087c9c4e800371cfcc8ac966fc", size = 1924759, upload-time = "2025-08-11T15:39:53.024Z" },
++ ]
++ 
+++[[package]]
+++name = "starlette"
+++version = "0.48.0"
+++source = { registry = "https://pypi.org/simple" }
+++dependencies = [
+++    { name = "anyio" },
+++    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+++]
+++sdist = { url = "https://files.pythonhosted.org/packages/a7/a5/d6f429d43394057b67a6b5bbe6eae2f77a6bf7459d961fdb224bf206eee6/starlette-0.48.0.tar.gz", hash = "sha256:7e8cee469a8ab2352911528110ce9088fdc6a37d9876926e73da7ce4aa4c7a46", size = 2652949, upload-time = "2025-09-13T08:41:05.699Z" }
+++wheels = [
+++    { url = "https://files.pythonhosted.org/packages/be/72/2db2f49247d0a18b4f1bb9a5a39a0162869acf235f3a96418363947b3d46/starlette-0.48.0-py3-none-any.whl", hash = "sha256:0764ca97b097582558ecb498132ed0c7d942f233f365b86ba37770e026510659", size = 73736, upload-time = "2025-09-13T08:41:03.869Z" },
+++]
+++
++ [[package]]
++ name = "structlog"
++ version = "25.4.0"
++@@ -2788,6 +2817,20 @@ wheels = [
++     { url = "https://files.pythonhosted.org/packages/7a/01/4d44aacb9b02561fdbd53948ffc278b78c80e929debba4945809c4cf1295/uv-0.8.20-py3-none-win_arm64.whl", hash = "sha256:23222fd90d843d8c5650f2b3e297dbed4d05a4d28a5e99d017d73aebaa98bea4", size = 19560961, upload-time = "2025-09-22T23:02:21.791Z" },
++ ]
++ 
+++[[package]]
+++name = "uvicorn"
+++version = "0.37.0"
+++source = { registry = "https://pypi.org/simple" }
+++dependencies = [
+++    { name = "click" },
+++    { name = "h11" },
+++    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
+++]
+++sdist = { url = "https://files.pythonhosted.org/packages/71/57/1616c8274c3442d802621abf5deb230771c7a0fec9414cb6763900eb3868/uvicorn-0.37.0.tar.gz", hash = "sha256:4115c8add6d3fd536c8ee77f0e14a7fd2ebba939fed9b02583a97f80648f9e13", size = 80367, upload-time = "2025-09-23T13:33:47.486Z" }
+++wheels = [
+++    { url = "https://files.pythonhosted.org/packages/85/cd/584a2ceb5532af99dd09e50919e3615ba99aa127e9850eafe5f31ddfdb9a/uvicorn-0.37.0-py3-none-any.whl", hash = "sha256:913b2b88672343739927ce381ff9e2ad62541f9f8289664fa1d1d3803fa2ce6c", size = 67976, upload-time = "2025-09-23T13:33:45.842Z" },
+++]
+++
++ [[package]]
++ name = "xxhash"
++ version = "3.5.0"
++```
++
+diff --git a/main.py b/main.py
+index 0442801..4fe76e0 100644
+--- a/main.py
++++ b/main.py
+@@ -1,17 +1,57 @@
+ # ==================== main.py ====================
+ """
+ Main entry point for the AI Receptionist system.
+-"""
++uvicorn main:app --reload
+ 
++run_test.py -  To do Basic Tesing of the Agents
++replicate_conversations.py - Run some conversations to see the results.
++"""
++import logging
++import logging.config
++from logging.handlers import RotatingFileHandler
+ import asyncio
+ import json
+ from fastapi import FastAPI, HTTPException
+ from pydantic import BaseModel
+ from typing import Dict, Any
+ 
++
+ from src.workflow.workflow_runner import WorkflowRunner
+ from config.settings import settings
+ 
++LOGGING_CONFIG = {
++    "version": 1,
++    "disable_existing_loggers": False,
++    "formatters": {
++        "default": {
++            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
++        },
++    },
++    "handlers": {
++        "default": {
++            "level": "INFO",
++            "formatter": "default",
++            "class": "logging.StreamHandler",
++        },
++        "file": {
++            "level": "INFO",
++            "formatter": "default",
++            "class": "logging.handlers.RotatingFileHandler",
++            "filename": "./logs/ai_receptionist.log",
++            "maxBytes": 10485760,
++            "backupCount": 5,
++        },
++    },
++    "root": {
++        "level": "INFO",
++        "handlers": ["default", "file"]
++    },
++}
++
++logging.config.dictConfig(LOGGING_CONFIG)
++logger = logging.getLogger("ai_receptionist")
++
++# Initialize FastAPI
+ 
+ app = FastAPI(
+     title="AI Receptionist System",
+@@ -42,13 +82,13 @@ class CallResponse(BaseModel):
+ 
+ @app.get("/health")
+ async def health_check():
+-    """Health check endpoint."""
++    print("""Health check endpoint.""")
+     return {"status": "healthy", "environment": settings.environment}
+ 
+ 
+ @app.post("/process-call", response_model=CallResponse)
+ async def process_call(request: CallRequest):
+-    """Process an incoming call through the AI Receptionist workflow."""
++    logger.info("Process an incoming call through the AI Receptionist workflow.")
+     try:
+         call_data = {
+             "caller_phone": request.caller_phone,
+diff --git a/pyproject.toml b/pyproject.toml
+index cb44b8e..1605f65 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -27,6 +27,7 @@ dependencies = [
+     "click",
+     "colorama",
+     "dill",
++    "dotenv>=0.9.9",
+     "faker>=37.8.0",
+     "fastapi>=0.117.1",
+     "filetype",
+@@ -76,6 +77,7 @@ dependencies = [
+     "pymongo>=4.15.1",
+     "pytest>=8.4.2",
+     "pytest-asyncio>=1.2.0",
++    "pytest-json-report>=1.5.0",
+     "pytest-mock>=3.15.1",
+     "python-dateutil",
+     "python-dotenv",
+@@ -91,6 +93,7 @@ dependencies = [
+     "sniffio",
+     "SQLAlchemy",
+     "structlog",
++    "tabulate>=0.9.0",
+     "tenacity",
+     "typing-inspection",
+     "typing_extensions",
+diff --git a/simulated_conversations/20250929_201416_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_201416_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..bab3c5f
+--- /dev/null
++++ b/simulated_conversations/20250929_201416_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 20:14:16
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** I apologize, but I'm having trouble processing your request right now.
++- Intent: schedule_update
++- Caller Type: client
++- Next Action: continue_conversation
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/simulated_conversations/20250929_201729_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_201729_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..904ca69
+--- /dev/null
++++ b/simulated_conversations/20250929_201729_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 20:17:29
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** I apologize, but I'm having trouble processing your request right now.
++- Intent: schedule_update
++- Caller Type: client
++- Next Action: continue_conversation
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/simulated_conversations/20250929_202135_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_202135_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..b42f4fb
+--- /dev/null
++++ b/simulated_conversations/20250929_202135_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 20:21:35
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** I apologize, but I'm having trouble processing your request right now.
++- Intent: schedule_update
++- Caller Type: client
++- Next Action: continue_conversation
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/simulated_conversations/20250929_202412_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_202412_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..498a8eb
+--- /dev/null
++++ b/simulated_conversations/20250929_202412_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 20:24:12
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** I apologize, but I'm having trouble processing your request right now.
++- Intent: schedule_update
++- Caller Type: client
++- Next Action: continue_conversation
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/simulated_conversations/20250929_202501_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_202501_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..5cd2aa2
+--- /dev/null
++++ b/simulated_conversations/20250929_202501_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 20:25:01
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** I apologize, but I'm having trouble processing your request right now.
++- Intent: schedule_update
++- Caller Type: client
++- Next Action: continue_conversation
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/simulated_conversations/20250929_202628_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_202628_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..58c719c
+--- /dev/null
++++ b/simulated_conversations/20250929_202628_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 20:26:28
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** 
++- Intent: Unknown
++- Caller Type: Unknown
++- Next Action: None
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/simulated_conversations/20250929_204510_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_204510_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..f67f9da
+--- /dev/null
++++ b/simulated_conversations/20250929_204510_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 20:45:10
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** None
++- Intent: None
++- Caller Type: None
++- Next Action: None
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/simulated_conversations/20250929_204604_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_204604_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..2fa3c94
+--- /dev/null
++++ b/simulated_conversations/20250929_204604_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 20:46:04
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** None
++- Intent: None
++- Caller Type: None
++- Next Action: None
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/simulated_conversations/20250929_204657_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_204657_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..22e61a7
+--- /dev/null
++++ b/simulated_conversations/20250929_204657_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 20:46:57
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** None
++- Intent: None
++- Caller Type: None
++- Next Action: None
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/simulated_conversations/20250929_204937_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_204937_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..3cefc36
+--- /dev/null
++++ b/simulated_conversations/20250929_204937_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 20:49:37
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** 
++- Intent: Unknown
++- Caller Type: Unknown
++- Next Action: None
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/simulated_conversations/20250929_205534_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_205534_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..f9ca0f8
+--- /dev/null
++++ b/simulated_conversations/20250929_205534_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 20:55:34
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** 
++- Intent: Unknown
++- Caller Type: Unknown
++- Next Action: None
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/simulated_conversations/20250929_205753_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_205753_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..fe741e8
+--- /dev/null
++++ b/simulated_conversations/20250929_205753_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 20:57:53
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** None
++- Intent: None
++- Caller Type: None
++- Next Action: None
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/simulated_conversations/20250929_205853_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_205853_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..1967d69
+--- /dev/null
++++ b/simulated_conversations/20250929_205853_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 20:58:53
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** 
++- Intent: Unknown
++- Caller Type: Unknown
++- Next Action: None
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/simulated_conversations/20250929_210023_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_210023_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..0d93e9b
+--- /dev/null
++++ b/simulated_conversations/20250929_210023_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 21:00:23
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** 
++- Intent: Unknown
++- Caller Type: Unknown
++- Next Action: None
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/simulated_conversations/20250929_210345_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_210345_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..0e38d69
+--- /dev/null
++++ b/simulated_conversations/20250929_210345_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 21:03:45
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** 
++- Intent: Unknown
++- Caller Type: Unknown
++- Next Action: None
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/simulated_conversations/20250929_210537_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_210537_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..6721cd9
+--- /dev/null
++++ b/simulated_conversations/20250929_210537_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 21:05:37
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** 
++- Intent: Unknown
++- Caller Type: Unknown
++- Next Action: None
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/simulated_conversations/20250929_210715_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_210715_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..77b49ed
+--- /dev/null
++++ b/simulated_conversations/20250929_210715_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 21:07:15
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** 
++- Intent: Unknown
++- Caller Type: Unknown
++- Next Action: None
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/simulated_conversations/20250929_211107_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_211107_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..1526fdf
+--- /dev/null
++++ b/simulated_conversations/20250929_211107_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 21:11:07
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** None
++- Intent: None
++- Caller Type: None
++- Next Action: None
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/simulated_conversations/20250929_211247_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_211247_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..1db3291
+--- /dev/null
++++ b/simulated_conversations/20250929_211247_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-29 21:12:47
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** None
++- Intent: None
++- Caller Type: None
++- Next Action: None
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/src/models/database_models.py b/src/models/database_models.py
+index e7ace3c..4a5b560 100644
+--- a/src/models/database_models.py
++++ b/src/models/database_models.py
+@@ -2,7 +2,7 @@
+ """Database models for MongoDB collections using Pydantic."""
+ 
+ from datetime import datetime
+-from typing import Optional, List
++from typing import Optional, List, Any
+ from pydantic import BaseModel, Field, ConfigDict
+ from bson import ObjectId
+ 
+@@ -15,10 +15,21 @@ class PyObjectId(ObjectId):
+         yield cls.validate
+ 
+     @classmethod
+-    def validate(cls, v):
+-        if not ObjectId.is_valid(v):
++    def validate(cls, v: Any, info: Any = None):
++        """
++        Accept the optional 'info' arg that Pydantic v2 may supply.
++        This keeps backward compatible behavior for v1 and v2.
++        """
++        if isinstance(v, ObjectId):
++            return v
++        try:
++            # Coerce to string first to handle ObjectId objects and strings
++            v_str = str(v)
++            if not ObjectId.is_valid(v_str):
++                raise ValueError("Invalid ObjectId")
++            return ObjectId(v_str)
++        except Exception:
+             raise ValueError("Invalid ObjectId")
+-        return ObjectId(v)
+ 
+     @classmethod
+     def __get_pydantic_json_schema__(cls, schema, handler):
+@@ -42,6 +53,14 @@ class BaseDocument(BaseModel):
+         json_encoders={ObjectId: str},
+     )
+ 
++class AgentActionPrompt(BaseDocument):
++    """ Agent Action Prompts model."""
++
++    agent: str
++    action: str
++    prompt: str
++    active: bool = True
++    level: int
+ 
+ class Client(BaseDocument):
+     """Client model."""
+diff --git a/src/models/workflow_models.py b/src/models/workflow_models.py
+index e46f186..9eb1ecc 100644
+--- a/src/models/workflow_models.py
++++ b/src/models/workflow_models.py
+@@ -25,6 +25,7 @@ class Intent(str, Enum):
+     COMPLAINT = "complaint"
+     SALES_INQUIRY = "sales_inquiry"
+     SCHEDULE_UPDATE = "schedule_update"
++    PROFILE_UPDATE = "profile_update"
+     OTHER = "other"
+ 
+ 
+@@ -55,5 +56,10 @@ class WorkflowState(BaseModel):
+     processed: bool = False
+     error_message: Optional[str] = None
+     
++    turn_count: Optional[int] = 0
++    time_details: Optional[str] = None
++    
++    agent_prompt: Optional[str] = None
++    
+     class Config:
+         use_enum_values = True
+\ No newline at end of file
+diff --git a/src/nodes/context_builder.py b/src/nodes/context_builder.py
+index d79f804..a1e07a6 100644
+--- a/src/nodes/context_builder.py
++++ b/src/nodes/context_builder.py
+@@ -12,7 +12,7 @@ class ContextBuilder:
+         self.context_service = context_service
+     
+     async def __call__(self, state: WorkflowState) -> WorkflowState:
+-        """Build context based on caller type."""
++        print("""Build context based on caller type.""")
+         try:
+             if state.caller_type == CallerType.CLIENT and state.client:
+                 state.context_data = await self.context_service.build_client_context(state.client)
+diff --git a/src/nodes/identity_checker.py b/src/nodes/identity_checker.py
+index 91b8322..e3dad59 100644
+--- a/src/nodes/identity_checker.py
++++ b/src/nodes/identity_checker.py
+@@ -1,10 +1,14 @@
+ # ==================== src/nodes/identity_checker.py ====================
+ """Identity checker node for caller identification."""
+-
++import logging
++# Get a logger instance for your module
++logger = logging.getLogger(__name__)
++# Set the logging level (e.g., INFO, DEBUG, WARNING, ERROR, CRITICAL)
++logger.setLevel(logging.INFO)
++import re
+ from src.models.workflow_models import WorkflowState, CallerType
+ from src.services.database_service import DatabaseService
+ 
+-
+ class IdentityChecker:
+     """Node for identifying callers."""
+     
+@@ -12,28 +16,38 @@ class IdentityChecker:
+         self.db_service = db_service
+     
+     async def __call__(self, state: WorkflowState) -> WorkflowState:
++        logger.info('Executing IdentityChecker')
++        logger.info(f"Inital state: {state}")
+         """Check caller identity."""
+         if not state.caller_phone:
+             state.caller_type = CallerType.LEAD
+             return state
+         
++        caller_phone = self.normalize_phone(state.caller_phone)
++        
+         try:
+             # Check if caller is a client
+-            client = await self.db_service.find_client_by_phone(state.caller_phone)
++            logger.info('Checking if caller is a client')
++            client = await self.db_service.find_client_by_phone(caller_phone)
++            logger.info('Checking Done')
+             if client:
++                logger.info('Caller is a client')
+                 state.caller_type = CallerType.CLIENT
+                 state.client = client
+                 state.caller_profile = client.dict()
++                logger.info(state)
+                 return state
+-            
++            else:
++                logger.info('Caller is not a client')
+             # Check if caller is a vendor
+-            vendor = await self.db_service.find_vendor_by_phone(state.caller_phone)
++            vendor = await self.db_service.find_vendor_by_phone(caller_phone)
+             if vendor:
+                 state.caller_type = CallerType.VENDOR
+                 state.vendor = vendor
+                 state.caller_profile = vendor.dict()
+                 return state
+-            
++            else:
++                logger.info('Caller is not a vendor')
+             # Default to lead
+             state.caller_type = CallerType.LEAD
+             
+@@ -41,4 +55,12 @@ class IdentityChecker:
+             state.error_message = f"Identity check failed: {str(e)}"
+             state.caller_type = CallerType.LEAD
+         
+-        return state
+\ No newline at end of file
++        return state
++    
++    def normalize_phone(self, number: str) -> str:
++        digits = re.sub(r"\D", "", number)  # Remove all non-digits
++        if len(digits) == 10:
++            return f"{digits[0:3]}-{digits[3:6]}-{digits[6:10]}"
++        elif len(digits) == 11 and digits[0] == "1":  # +1 prefix
++                return f"{digits[1:4]}-{digits[4:7]}-{digits[7:11]}"
++        raise ValueError("Phone must have 10 or 11 digits")
+\ No newline at end of file
+diff --git a/src/nodes/intent_analyzer.py b/src/nodes/intent_analyzer.py
+index 1abdfd7..e5dc189 100644
+--- a/src/nodes/intent_analyzer.py
++++ b/src/nodes/intent_analyzer.py
+@@ -1,50 +1,88 @@
+ # ==================== src/nodes/intent_analyzer.py ====================
+-"""Intent analyzer node."""
++"""Intent analyzer node with Google Gemini integration."""
++import logging
++# Get a logger instance for your module
++logger = logging.getLogger(__name__)
++# Set the logging level (e.g., INFO, DEBUG, WARNING, ERROR, CRITICAL)
++logger.setLevel(logging.INFO)
+ 
+ import re
++import os
++import json
++import google.generativeai as genai
+ from src.models.workflow_models import WorkflowState, Intent
++from dotenv import load_dotenv
++from src.services.database_service import DatabaseService
+ 
++load_dotenv()
+ 
+ class IntentAnalyzer:
+-    """Node for analyzing caller intent."""
++    """Node for analyzing caller intent using Google Gemini."""
+     
+-    def __init__(self):
+-        self.intent_patterns = {
+-            Intent.STATUS_CHECK: [
+-                r"status", r"progress", r"update", r"how.*going", r"when.*complete"
+-            ],
+-            Intent.SERVICE_REQUEST: [
+-                r"need.*service", r"repair", r"fix", r"maintenance", r"problem"
+-            ],
+-            Intent.COMPLAINT: [
+-                r"complain", r"issue", r"problem", r"dissatisfied", r"unhappy"
+-            ],
+-            Intent.SALES_INQUIRY: [
+-                r"price", r"cost", r"quote", r"estimate", r"how much"
+-            ]
+-        }
++    def __init__(self, db_service: DatabaseService):
++        self.db_service = db_service
++
++        # Configure Google AI with API key
++        api_key = os.getenv("LLM__GOOGLE_API_KEY")
++        if not api_key:
++            raise ValueError("API_KEY environment variable is required")
++        
++        genai.configure(api_key=api_key)
++
++        self.model_name = os.getenv("LLM__MODEL_NAME")
++        if not self.model_name:
++            raise ValueError("MODEL environment variable is required")
++        
++    async def _create_intent_prompt(self, state: WorkflowState) -> WorkflowState:
++        print("""Create a structured prompt for Gemini to analyze intent.""")
++        agent_prompt = await self.db_service.find_agent_action_prompt('receptionist','intent_analysis',1)
++        
++        # Build prompt dynamically with context
++        prompt = f"""
++            You are an AI receptionist assistant having a phone conversation. 
++            {agent_prompt}.
++
++            Current Context:
++            - Caller Type: {state.caller_type}
++            - Caller Speech: {state.speech_text}
++        """
++
++        state.agent_prompt = prompt
++        return state
++    
++    async def _analyze_with_gemini(self, state: WorkflowState) -> str:
++        print("""Use Google Gemini to analyze intent.""")
++        try:
++            state = await self._create_intent_prompt(state)
++
++            # Configure Gemini model
++            model = genai.GenerativeModel(self.model_name)
++            
++            # Generate response
++            response = model.generate_content(state.agent_prompt)
++            
++            # Parse response
++            intent_value = response.text.strip().lower()
++    
++            return intent_value
++            
++        except Exception as e:
++            print(f"⚠️ Gemini intent analysis failed: {e}")
++            return "Customer Service"
+     
+     async def __call__(self, state: WorkflowState) -> WorkflowState:
+-        """Analyze caller intent from speech."""
++        """Analyze caller intent from speech using Gemini + regex fallback."""
+         if not state.speech_text:
+-            state.intent = Intent.GENERAL_INQUIRY
++            state.intent = "Customer Service"
+             return state
+         
+-        text = state.speech_text.lower()
+-        
+         try:
+-            # Check patterns for each intent
+-            for intent, patterns in self.intent_patterns.items():
+-                for pattern in patterns:
+-                    if re.search(pattern, text):
+-                        state.intent = intent
+-                        return state
+-            
+-            # Default intent
+-            state.intent = Intent.GENERAL_INQUIRY
++            # Primary: Use Gemini for intent analysis
++            state.intent = await self._analyze_with_gemini(state)
+             
+         except Exception as e:
+-            state.error_message = f"Intent analysis failed: {str(e)}"
+-            state.intent = Intent.GENERAL_INQUIRY
++            # Fallback: Use regex patterns
++            state.error_message = f"Intent analysis error: {str(e)}"
++            state.intent = self._fallback_regex_analysis(state.speech_text)
+         
+-        return state    
+\ No newline at end of file
++        return state
+\ No newline at end of file
+diff --git a/src/nodes/response_generator.py b/src/nodes/response_generator.py
+index 7f65cec..5c4578e 100644
+--- a/src/nodes/response_generator.py
++++ b/src/nodes/response_generator.py
+@@ -1,82 +1,147 @@
+ # ==================== src/nodes/response_generator.py ====================
+-"""Response generator node."""
++"""Response generator node using Google Gemini."""
+ 
+ import html
+-from typing import Dict, Any
+-
++import os
++import google.generativeai as genai
+ from src.models.workflow_models import WorkflowState, CallerType, Intent
++from config.settings import settings
++from dotenv import load_dotenv
++from src.services.database_service import DatabaseService
+ 
++load_dotenv()
+ 
+ class ResponseGenerator:
+-    """Node for generating responses."""
+-    
++    """Node for generating responses with Google Gemini."""
++        
+     def __init__(self):
+-        self.templates = {
+-            CallerType.CLIENT: {
+-                Intent.STATUS_CHECK: "Let me check the status of your current projects...",
+-                Intent.SERVICE_REQUEST: "I'd be happy to help you with a service request...",
+-                Intent.COMPLAINT: "I understand your concern. Let me look into this for you...",
+-                Intent.GENERAL_INQUIRY: "Hello! How can I assist you with your property today?"
+-            },
+-            CallerType.VENDOR: {
+-                Intent.STATUS_CHECK: "Let me check your current job assignments...",
+-                Intent.GENERAL_INQUIRY: "Hello! What can I help you with regarding your jobs?"
+-            },
+-            CallerType.LEAD: {
+-                Intent.SALES_INQUIRY: "Thank you for your interest in our services...",
+-                Intent.GENERAL_INQUIRY: "Welcome! How can we help you today?"
+-            }
+-        }
+-    
++        self.db_service = DatabaseService
++
++        # Configure Gemini
++        api_key = os.getenv("LLM__GOOGLE_API_KEY")
++        if not api_key:
++            raise ValueError("API_KEY environment variable is required")
++        
++        genai.configure(api_key=api_key)
++
++        self.model_name = os.getenv("LLM__MODEL_NAME")
++        if not self.model_name:
++            raise ValueError("MODEL environment variable is required")
++
+     def _escape_output(self, text: str) -> str:
+         """Escape text for safe display."""
+         return html.escape(text)
+-    
++
+     async def __call__(self, state: WorkflowState) -> WorkflowState:
+-        """Generate response based on context and intent."""
++        """Generate response using Gemini based on context and intent."""
+         try:
+-            # Get base template
+-            caller_templates = self.templates.get(state.caller_type, {})
+-            base_response = caller_templates.get(
+-                state.intent, 
+-                "Hello! How can I help you today?"
+-            )
+-            
+-            # Enhance response with context
+-            enhanced_response = self._enhance_response(base_response, state)
++            agent_prompt = await self.db_service.find_agent_action_prompt('receptionist','intent_analysis',1)
++            state.agent_prompt = agent_prompt.prompt
+             
+-            # Escape for safe output
+-            state.response_text = self._escape_output(enhanced_response)
+-            state.next_action = self._determine_next_action(state)
++            # Initialize turn count if not present
++            if not hasattr(state, 'turn_count'):
++                state.turn_count = 0
++            state.turn_count += 1
+             
++            response = await self._generate_with_gemini(state)
++
++            # If Gemini fails or empty string, fall back to templates
++            if not response:
++                response = self._get_fallback_response(state)
++
++            # Assign response back into workflow state
++            state.response_text = self._escape_output(response)
++            state.next_action = 'WIP'
++
+         except Exception as e:
+             state.error_message = f"Response generation failed: {str(e)}"
+             state.response_text = "I apologize, but I'm having trouble processing your request right now."
+-        
++            state.next_action = "continue_conversation"
++
+         state.processed = True
+         return state
+-    
+-    def _enhance_response(self, base_response: str, state: WorkflowState) -> str:
+-        """Enhance response with contextual information."""
+-        if state.caller_type == CallerType.CLIENT and state.context_data.get("properties"):
+-            property_count = len(state.context_data["properties"])
+-            if property_count > 0:
+-                base_response += f" I see you have {property_count} property(ies) with us."
+-        
+-        elif state.caller_type == CallerType.VENDOR and state.context_data.get("jobs"):
+-            job_count = len(state.context_data["jobs"])
+-            if job_count > 0:
+-                base_response += f" You currently have {job_count} job(s) assigned."
+-        
+-        return base_response
+-    
++
++    async def _generate_with_gemini(self, state: WorkflowState) -> str:
++        """Ask Gemini to generate a contextual, intent-aware response."""
++        try:
++            # Build conversation history
++            conversation_history = ""
++            if hasattr(state, 'conversation_history') and state.conversation_history:
++                history_items = []
++                for i, turn in enumerate(state.conversation_history[-3:]):  # Last 3 turns
++                    history_items.append(f"Turn {i+1}: Caller said '{turn.get('user_input', '')}' -> AI responded '{turn.get('response', '')}'")
++                conversation_history = "\n".join(history_items)
++            
++            # Build prompt dynamically with context
++            prompt = f"""
++                You are an AI receptionist assistant having a phone conversation. 
++                {WorkflowState.agent_prompt}.
++
++                Current Context:
++                - Caller Type: {state.caller_type.value}
++                - Turn Number: {state.turn_count}
++                - Caller Speech: "{state.speech_text}"
++
++                Previous Conversation:
++                {conversation_history}
++
++                Response:
++            """
++            
++            # Configure model with specific parameters for consistency
++            model = genai.GenerativeModel(
++                self.model_name,
++                generation_config={
++                    "temperature": 0.7,
++                    "max_output_tokens": 150,
++                    "stop_sequences": ["\n\n", "."]
++                }
++            )
++            
++            response = model.generate_content(prompt)
++            
++            result = response.text.strip() if response and response.text else None
++            
++            # Update conversation history
++            if not hasattr(state, 'conversation_history'):
++                state.conversation_history = []
++            
++            state.conversation_history.append({
++                'user_input': state.speech_text,
++                'response': result,
++                'intent': result,
++                'turn': state.turn_count
++            })
++            
++            # Keep only last 5 turns to prevent context overflow
++            if len(state.conversation_history) > 5:
++                state.conversation_history = state.conversation_history[-5:]
++
++            return result
++
++        except Exception as e:
++            print(f"⚠️ Gemini failed: {e}")
++            return None
++
++    def _get_fallback_response(self, state: WorkflowState) -> str:
++        """Fallback template when Gemini fails."""
++        caller_templates = self.templates.get(state.caller_type, {})
++        return caller_templates.get(state.intent, "Hello! How can I help you today?")
++
+     def _determine_next_action(self, state: WorkflowState) -> str:
+-        """Determine the next action to take."""
++        """Decide what the workflow should do next."""
+         if state.intent == Intent.SERVICE_REQUEST:
+             return "schedule_service"
+         elif state.intent == Intent.STATUS_CHECK:
+             return "provide_status"
+         elif state.intent == Intent.COMPLAINT:
+             return "escalate_to_human"
++        elif state.intent == Intent.PROFILE_UPDATE:
++            return "authenticate_profile_update"
++        elif state.intent == Intent.SCHEDULE_UPDATE:
++            # Check if we have time details to confirm appointment
++            if hasattr(state, 'time_details') and state.time_details:
++                return "confirm_appointment"
++            return "reschedule_job"
+         else:
+             return "continue_conversation"
+\ No newline at end of file
+diff --git a/src/services/context_service.py b/src/services/context_service.py
+index 4f9b4b8..6cfa742 100644
+--- a/src/services/context_service.py
++++ b/src/services/context_service.py
+@@ -3,60 +3,64 @@
+ 
+ from typing import Dict, Any, List
+ from bson import ObjectId
+-
++import sys
+ from src.models.workflow_models import WorkflowState, CallerType
+ from src.models.database_models import Client, Vendor
+ from .database_service import DatabaseService
+ 
+ 
+ class ContextService:
+-    """Service for building caller context."""
+     
+     def __init__(self, db_service: DatabaseService):
++        print("Initializing ContextService")
+         self.db_service = db_service
+     
+     async def build_client_context(self, client: Client) -> Dict[str, Any]:
+-        """Build comprehensive context for a client."""
+-        context = {
+-            "client": client.dict(),
+-            "properties": [],
+-            "jobs": [],
+-            "visits": [],
+-            "vendors": []
+-        }
+-        
+-        # Get client properties
+-        properties = await self.db_service.get_client_properties(client.id)
+-        context["properties"] = [prop.dict() for prop in properties]
+-        
+-        # Get jobs for all properties
+-        all_jobs = []
+-        vendor_ids = set()
+-        
+-        for prop in properties:
+-            jobs = await self.db_service.get_property_jobs(prop.id)
+-            all_jobs.extend(jobs)
+-            vendor_ids.update(job.vendor_id for job in jobs)
+-        
+-        context["jobs"] = [job.dict() for job in all_jobs]
+-        
+-        # Get visits for all jobs
+-        all_visits = []
+-        for job in all_jobs:
+-            visits = await self.db_service.get_job_visits(job.id)
+-            all_visits.extend(visits)
+-        
+-        context["visits"] = [visit.dict() for visit in all_visits]
+-        
+-        # Get vendor information
+-        vendors = []
+-        for vendor_id in vendor_ids:
+-            vendor_doc = await self.db_service.db.vendors.find_one({"_id": vendor_id})
+-            if vendor_doc:
+-                vendors.append(Vendor(**vendor_doc).dict())
+-        
+-        context["vendors"] = vendors
+-        
++        print("""Build comprehensive context for a client.""")
++        try:
++            context = {
++                "client": client.dict(),
++                "properties": [],
++                "jobs": [],
++                "visits": [],
++                "vendors": []
++            }
++            
++            # Get client properties
++            properties = await self.db_service.get_client_properties(client.id)
++            context["properties"] = [prop.dict() for prop in properties]
++            
++            # Get jobs for all properties
++            all_jobs = []
++            vendor_ids = set()
++            
++            for prop in properties:
++                jobs = await self.db_service.get_property_jobs(prop.id)
++                all_jobs.extend(jobs)
++                vendor_ids.update(job.vendor_id for job in jobs)
++            
++            context["jobs"] = [job.dict() for job in all_jobs]
++            
++            # Get visits for all jobs
++            all_visits = []
++            for job in all_jobs:
++                visits = await self.db_service.get_job_visits(job.id)
++                all_visits.extend(visits)
++            
++            context["visits"] = [visit.dict() for visit in all_visits]
++            
++            # Get vendor information
++            vendors = []
++            for vendor_id in vendor_ids:
++                vendor_doc = await self.db_service.db.vendors.find_one({"_id": vendor_id})
++                if vendor_doc:
++                    vendors.append(Vendor(**vendor_doc).dict())
++            
++            context["vendors"] = vendors
++        except Exception as e:
++            print (f"Errror Build comprehensive context for a client: {str(e)}")
++            sys.exit(1)  
++
+         return context
+     
+     async def build_vendor_context(self, vendor: Vendor) -> Dict[str, Any]:
+diff --git a/src/services/database_service.py b/src/services/database_service.py
+index 6aa2174..511e352 100644
+--- a/src/services/database_service.py
++++ b/src/services/database_service.py
+@@ -6,10 +6,10 @@ import html
+ from typing import Optional, List, Dict, Any
+ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+ from bson import ObjectId
+-
++import sys
+ from config.settings import settings
+ from src.models.database_models import (
+-    Client, Property, Job, Visit, Vendor, KnowledgeBase
++    Client, Property, Job, Visit, Vendor, KnowledgeBase, AgentActionPrompt
+ )
+ 
+ 
+@@ -41,14 +41,47 @@ class DatabaseService:
+                 sanitized[key] = value
+         return sanitized
+     
++    async def find_agent_action_prompt(self, agent: str, action: str, level: int = 1) -> str:
++        print("Searching for prompt:", repr(agent), repr(action), repr(level))
++        try:
++            result = await self.db.agent_action_prompts.find_one({"agent": agent, "action": action, "level": level, "active": True}, {"_id": 0, "agent": 0, "action": 0, "level": 0, "active": 0})
++            print("Searching for prompt (repr):", repr(agent), repr(action), repr(level))
++            print("DB name:", getattr(self.db, 'name', '<unknown>'))
++            print("Collections:", await self.db.list_collection_names())
++            print("Result:", result)
++            result = result if result else None
++        except Exception as e:
++            print (f"Errror Finding Agent Action Prompt: {str(e)}")
++            sys.exit(1)    
++
++        return result    
++
+     async def find_client_by_phone(self, phone: str) -> Optional[Client]:
+-        """Find client by phone number."""
+-        result = await self.db.clients.find_one({"phone": phone})
+-        return Client(**result) if result else None
++        """
++           Find client by phone number.
++           The ** is Python's dictionary unpacking operator.It converts dictionary key-value pairs into named arguments
++        """
++        try:
++            result = await self.db.clients.find_one({"phone": phone}, {"embeddings": 0})
++            print("Searching for phone (repr):", repr(phone))
++            print("Type:", type(phone))
++            print("DB name:", getattr(self.db, 'name', '<unknown>'))
++            print("Collections:", await self.db.list_collection_names())
++            print("Result:", result)
++            result = Client(**result) if result else None
++        except Exception as e:
++            print (f"Errror Finding Client: {str(e)}")
++            sys.exit(1)    
++
++        return result
+     
+     async def find_vendor_by_phone(self, phone: str) -> Optional[Vendor]:
+         """Find vendor by phone number."""
+         result = await self.db.vendors.find_one({"phone": phone})
++        print("Searching for phone (repr):", repr(phone))
++        print("Type:", type(phone))
++        print("DB name:", getattr(self.db, 'name', '<unknown>'))
++        print("Collections:", await self.db.list_collection_names())
+         return Vendor(**result) if result else None
+     
+     async def get_client_properties(self, client_id: ObjectId) -> List[Property]:
+diff --git a/src/services/embedding_service.py b/src/services/embedding_service.py
+index dcd3ec8..0dbba3d 100644
+--- a/src/services/embedding_service.py
++++ b/src/services/embedding_service.py
+@@ -3,25 +3,31 @@
+ 
+ import os
+ import re
++from dotenv import load_dotenv
+ from typing import List, Optional
+ import google.generativeai as genai
+ from google.generativeai.types import EmbedContentResponse
+ 
+ from config.settings import settings
+ 
++# Load .env into environment (default: project root directory)
++load_dotenv()
+ 
+ class EmbeddingService:
+     """Service for text embedding using Google's text-embedding-004 model."""
+     
+     def __init__(self):
+         # Configure Google AI with API key
+-        api_key = os.getenv("GOOGLE_API_KEY")
++        api_key = os.getenv("LLM__GOOGLE_API_KEY")
+         if not api_key:
+-            raise ValueError("GOOGLE_API_KEY environment variable is required")
++            raise ValueError("API_KEY environment variable is required")
+         
+         genai.configure(api_key=api_key)
+-        self.model_name = "models/text-embedding-004"
+-        
++
++        self.model_name = os.getenv("LLM__MODEL_NAME")
++        if not self.model_name:
++            raise ValueError("MODEL environment variable is required")
++
+         # Verify model is available
+         try:
+             # Test with a simple embedding
+diff --git a/src/utilities/generate_test_data.py b/src/utilities/generate_test_data.py
+index 1f5d4c8..1b2d9f1 100644
+--- a/src/utilities/generate_test_data.py
++++ b/src/utilities/generate_test_data.py
+@@ -4,6 +4,7 @@ import faker
+ import os
+ import json
+ import sys
++from bson import ObjectId
+ 
+ from datetime import datetime, timedelta
+ from pymongo import MongoClient
+@@ -154,7 +155,7 @@ def generate_vendors(n=25):
+     vendors = []
+     for _ in range(n):
+         vendors.append({
+-            "_id": generate_guid(),
++            "_id": ObjectId(),
+             "name": fake.company(),
+             "contact_person": fake.name(),
+             "phone": fake.phone_number(),
+@@ -166,7 +167,7 @@ def generate_vendors(n=25):
+             "zip": fake.zipcode(),
+             "country": "USA",
+             "service_type": random.choice(["residential_cleaning", "commercial_cleaning"]),
+-            "notes": f"Open {random.choice(['Mon–Fri', 'Mon–Sat'])} {random.choice(['8am–5pm', '9am–6pm'])}. {random.choice(['Eco-friendly products available.', 'Specializes in deep cleaning.', 'Discounts for recurring clients.'])}"
++            "notes": f"Business Hours: {get_vendor_business_hours()}. Services: {get_vendor_services()}"
+         })
+     return vendors
+ 
+@@ -175,7 +176,7 @@ def generate_clients(n=25, vendors=[]):
+     clients, properties, jobs, visits, kb = [], [], [], [], []
+     
+     for _ in range(n):
+-        client_id = generate_guid()
++        client_id = ObjectId()
+         client_city = fake.city()
+         client = {
+             "_id": client_id,
+@@ -191,15 +192,17 @@ def generate_clients(n=25, vendors=[]):
+             "notes": get_client_notes()
+         }
+         clients.append(client)
++        kb_id = ObjectId()
+         kb.append({
+-            "_id": client_id,
++            "_id": kb_id, 
++            "entity_id": client_id,
+             "content": f"Client {client['name']} in {client_city}. Notes: {client['notes']}",
+             "embedding": []
+         })
+ 
+         # Properties
+         for _ in range(random.randint(2, 5)):
+-            property_id = generate_guid()
++            property_id = ObjectId()
+             property_obj = {
+                 "_id": property_id,
+                 "client_id": client_id,
+@@ -209,13 +212,15 @@ def generate_clients(n=25, vendors=[]):
+                 "state": fake.state_abbr(),
+                 "zip": fake.zipcode(),
+                 "country": "USA",
+-                "property_type": random.choice(["residential", "commercial"]),
++                "property_type": random.choice(["residential", "commercial", "residential/commercial"]),
+                 "size": f"{random.randint(800, 5000)} sqft",
+                 "notes": get_property_notes()
+             }
+             properties.append(property_obj)
++            kb_id = ObjectId()
+             kb.append({
+-                "_id": property_id,
++                "_id": kb_id,
++                "entity_id": property_id,
+                 "content": f"Property in {client_city}, type {property_obj['property_type']}, size {property_obj['size']}. Notes: {property_obj['notes']}",
+                 "embedding": []
+             })
+@@ -225,7 +230,7 @@ def generate_clients(n=25, vendors=[]):
+             active_job_index = random.randint(0, num_jobs - 1)
+ 
+             for j in range(num_jobs):
+-                job_id = generate_guid()
++                job_id = ObjectId()
+                 vendor = random.choice([v for v in vendors if v["city"] == client_city] or vendors)
+                 scheduled_date = datetime.now() + timedelta(days=random.randint(1, 30))
+                 status = "in-progress" if j == active_job_index else "completed"
+@@ -246,14 +251,16 @@ def generate_clients(n=25, vendors=[]):
+                     "notes": get_job_notes()
+                 }
+                 jobs.append(job_obj)
++                kb_id = ObjectId()
+                 kb.append({
+-                    "_id": job_id,
++                    "_id": kb_id,
++                    "entity_id": job_id,
+                     "content": f"Job {job_obj['title']} for property {property_id}. Status: {status}. Notes: {job_obj['notes']}",
+                     "embedding": []
+                 })
+ 
+                 # Visits
+-                visit_id = generate_guid()
++                visit_id = ObjectId()
+                 visit_obj = {
+                     "_id": visit_id,
+                     "job_id": job_id,
+@@ -264,8 +271,12 @@ def generate_clients(n=25, vendors=[]):
+                     "notes": get_visit_notes()
+                 }
+                 visits.append(visit_obj)
++
++                kb_id = ObjectId()
+                 kb.append({
+-                    "_id": visit_id,
++                    "_id": kb_id,
++                    "entity_id": visit_id,
++                    "entity_type": "visit",
+                     "content": f"Visit for job {job_id} on {visit_obj['visit_date']} by {visit_obj['technician_name']}. Status: {visit_obj['status']}. Notes: {visit_obj['notes']}",
+                     "embedding": []
+                 })
+diff --git a/src/workflow/ai_receptionist_workflow.py b/src/workflow/ai_receptionist_workflow.py
+index fc1a2a0..92e3d20 100644
+--- a/src/workflow/ai_receptionist_workflow.py
++++ b/src/workflow/ai_receptionist_workflow.py
+@@ -1,5 +1,10 @@
+ # ==================== src/workflow/ai_receptionist_workflow.py ====================
+ """LangGraph workflow for AI Receptionist analysis."""
++import logging
++# Get a logger instance for your module
++logger = logging.getLogger(__name__)
++# Set the logging level (e.g., INFO, DEBUG, WARNING, ERROR, CRITICAL)
++logger.setLevel(logging.INFO)
+ 
+ from langgraph.graph import StateGraph, END
+ 
+@@ -22,7 +27,7 @@ class AIReceptionistWorkflow:
+         # Initialize nodes
+         self.identity_checker = IdentityChecker(self.db_service)
+         self.context_builder = ContextBuilder(self.context_service)
+-        self.intent_analyzer = IntentAnalyzer()
++        self.intent_analyzer = IntentAnalyzer(self.db_service)
+         self.response_generator = ResponseGenerator()
+         
+         # Build workflow
+@@ -34,14 +39,14 @@ class AIReceptionistWorkflow:
+         
+         # Add nodes
+         workflow.add_node("identity_check", self.identity_checker)
+-        workflow.add_node("context_build", self.context_builder)
++        #workflow.add_node("context_build", self.context_builder)
+         workflow.add_node("intent_analysis", self.intent_analyzer)
+         workflow.add_node("response_generation", self.response_generator)
+         
+         # Define edges
+         workflow.set_entry_point("identity_check")
+-        workflow.add_edge("identity_check", "context_build")
+-        workflow.add_edge("context_build", "intent_analysis")
++        workflow.add_edge("identity_check", "intent_analysis")
++        #workflow.add_edge("context_build", "intent_analysis")
+         workflow.add_edge("intent_analysis", "response_generation")
+         workflow.add_edge("response_generation", END)
+         
+@@ -56,8 +61,9 @@ class AIReceptionistWorkflow:
+         await self.db_service.disconnect()
+     
+     async def process_call(self, call_data: dict) -> WorkflowState:
+-        """Process an incoming call through the workflow."""
++        logger.info("Processing the call.")
+         # Create initial state
++
+         initial_state = WorkflowState(
+             call_sid=call_data.get("call_sid"),
+             caller_phone=call_data.get("caller_phone"),
+diff --git a/src/workflow/workflow_runner.py b/src/workflow/workflow_runner.py
+index 6614930..06d5bed 100644
+--- a/src/workflow/workflow_runner.py
++++ b/src/workflow/workflow_runner.py
+@@ -1,5 +1,10 @@
+ # ==================== src/workflow/workflow_runner.py ====================
+ """Workflow Runner for AI Receptionist. Command-line interface and programmatic runner for the workflow."""
++import logging
++# Get a logger instance for your module
++logger = logging.getLogger(__name__)
++# Set the logging level (e.g., INFO, DEBUG, WARNING, ERROR, CRITICAL)
++logger.setLevel(logging.INFO)
+ 
+ import asyncio
+ import json
+@@ -22,14 +27,18 @@ class WorkflowRunner:
+             await self.workflow.initialize()
+             
+             result = await self.workflow.process_call(call_data)
++            logger.info(f"Workflow result intent: {result}")         
++            caller_type = result.get('caller_type', 'lead')
++            logger.info(f"Workflow result caller type: {caller_type}")
++
+             
+             return {
+                 "success": True,
+-                "caller_type": result.caller_type,
+-                "intent": result.intent,
+-                "response": result.response_text,
+-                "next_action": result.next_action,
+-                "error": result.error_message
++                "caller_type": result.get('caller_type', 'lead'),
++                "intent": result.get('intent', 'generic'),
++                "response": result.get('response_text','Sorry I can\'t help you right now?'),
++                "next_action": result.get('next_action', 'None'),
++                "error": result.get('error_message','Unkown error')
+             }
+             
+         except Exception as e:
+diff --git a/test_regeneration_instructions.md b/test_regeneration_instructions.md
+new file mode 100644
+index 0000000..bddd11f
+--- /dev/null
++++ b/test_regeneration_instructions.md
+@@ -0,0 +1,96 @@
++Recommended Test Plan for AI Receptionist App
++This document outlines the comprehensive set of tests to ensure reliability, correctness, and security whenever changes are made to the codebase.
++
++1. Unit Tests (Lowest-level, fast run)
++Validate individual classes, models, and services in isolation.
++
++Models (src/models)
++WorkflowState model
++Default initialization of state fields.
++Serialization and deserialization to dict.
++Invalid type handling (e.g., passing string where enum required).
++Database models (Client, Vendor, etc.)
++Required/optional field validation.
++ObjectId / _id handling and custom serializers.
++Escaping/sanitization of notes and addresses.
++Utilities (src/utilities)
++phone_utils
++Normalize phone numbers with/without +1.
++Reject malformed phone formats.
++text_processing
++Stop word removal.
++Chunking of text >1000 tokens with 100-token overlap.
++Graceful handling of empty or very short text.
++Services
++DatabaseService
++Connection success and failure scenarios.
++CRUD operations with mock Mongo.
++Auto-creation of collections when missing.
++EmbeddingService
++Successful embedding generation (mocked Google API).
++Fallback to zero vector when embedding API fails.
++Chunking + embedding of large text bodies.
++ContextService
++Client context aggregation (client + properties + jobs + visits).
++Vendor context aggregation (vendor + jobs + visits).
++Lead context returns only KB info.
++Access restrictions filter forbidden fields.
++2. Node/Workflow Layer (src/nodes)
++Test each workflow node in isolation.
++
++IdentityChecker
++Known client phone → CallerType.CLIENT.
++Known vendor phone → CallerType.VENDOR.
++Unknown phone → CallerType.LEAD.
++IntentAnalyzer
++“What’s my job status?” → Intent.STATUS_CHECK.
++“I want cleaning service” → Intent.SERVICE_INQUIRY.
++Unknown phrasing → Intent.GENERIC.
++ContextBuilder
++Client context includes only their own jobs.
++Vendor context excludes unrelated client jobs.
++Lead context restricted to general KB entries.
++ResponseGenerator
++Generates meaningful text response.
++Enforces access control (no data leakage).
++Embeds context correctly into LLM prompt.
++3. Integration Tests
++Combine multiple modules to validate workflows.
++
++Database + Embedding pipeline
++Insert client/job → verify KB entry with embedding exists.
++Process call end-to-end (mock LLM)
++Client call → returns personalized response.
++Vendor call → returns vendor-focused response.
++Lead call → returns general KB info only.
++Twilio webhook simulation
++Simulated call event JSON → processed → generates appropriate Twilio TTS response.
++4. Access Control Tests
++Critical to enforce data protection rules.
++
++Client restrictions
++Clients only retrieve their properties, jobs, visits.
++Attempt to access another client’s job → denied/filtered.
++Vendor restrictions
++Vendors only retrieve their assigned jobs.
++Vendors cannot view unrelated clients.
++Lead restrictions
++Leads cannot see private data.
++System role
++System/AI has full access (internal use only).
++5. Performance & Reliability Tests
++EmbeddingService handles large text bodies (10k+ tokens, chunked).
++Workflow latency < X ms for standard calls.
++Database concurrency test: multiple simultaneous calls succeed without conflict.
++Embedding API failures trigger retries/backoff gracefully.
++6. Regression & Scenario Tests
++End-to-End Conversation Flows
++Client asks status → job status pulled from DB + summarized.
++Vendor updates/reschedules job → workflow reflects new state.
++Lead makes service inquiry → responds with general info only.
++Malicious Input Handling
++SQL/JS injection attempts → sanitized safely.
++Overly long inputs (>50k chars) truncated gracefully.
++Failover Scenarios
++DB outage → workflow exits gracefully with error handling.
++Embedding API error → workflow falls back to non-embedded text.
+\ No newline at end of file
+diff --git a/tests/replicate_conversations.py b/tests/replicate_conversations.py
+new file mode 100644
+index 0000000..cff39fd
+--- /dev/null
++++ b/tests/replicate_conversations.py
+@@ -0,0 +1,239 @@
++import requests
++import json
++import time
++import random
++from typing import List, Dict, Optional
++from datetime import datetime
++from pathlib import Path
++
++class ReceptionistClient:
++    """Client for interacting with the AI Receptionist API."""
++    
++    def __init__(self, base_url: str = "http://127.0.0.1:8000"):
++        self.base_url = base_url
++        self.session = requests.Session()
++        self.session.headers.update({"Content-Type": "application/json"})
++    
++    def health_check(self) -> Dict:
++        """Check if the API is healthy."""
++        try:
++            response = self.session.get(f"{self.base_url}/health")
++            response.raise_for_status()
++            return response.json()
++        except requests.exceptions.RequestException as e:
++            print(f"❌ Health check failed: {e}")
++            return {"status": "unhealthy", "error": str(e)}
++    
++    def process_call(self, caller_phone: str, speech_text: str, call_sid: str) -> Dict:
++        print("Send a call to the AI Receptionist for processing.")
++        payload = {
++            "caller_phone": caller_phone,
++            "speech_text": speech_text,
++            "call_sid": call_sid
++        }
++        
++        try:
++            print(f"📞 Sending: {speech_text}")
++            response = self.session.post(f"{self.base_url}/process-call", json=payload)
++            response.raise_for_status()
++            result = response.json()
++            print(f"🤖 Response: {result.get('response', 'No response')}")
++            print(f"📊 Intent: {result.get('intent', 'Unknown')}")
++            print(f"👤 Caller Type: {result.get('caller_type', 'Unknown')}")
++            print(f"⚡ Next Action: {result.get('next_action', 'None')}")
++            print(f"❌ Error Message: {result.get('error', 'No error')}")
++            print("-" * 50)
++            return result
++        except requests.exceptions.RequestException as e:
++            print(f"❌ API call failed: {e}")
++            return {"success": False, "error": str(e)}
++
++class ConversationSimulator:
++    """Simulates realistic conversations with the AI Receptionist."""
++    
++    def __init__(self, client: ReceptionistClient):
++        self.client = client
++        self.call_sid_counter = 1000
++        # Ensure conversations directory exists
++        self.conversations_dir = Path("simulated_conversations")
++        self.conversations_dir.mkdir(exist_ok=True)
++
++    def generate_call_sid(self) -> str:
++        """Generate a unique call SID."""
++        call_sid = f"CA{self.call_sid_counter:010d}"
++        self.call_sid_counter += 1
++        return call_sid
++    
++    def _save_conversation(self, scenario_name: str, caller_phone: str, call_sid: str, results: List[Dict]) -> None:
++        """Save the full conversation as a Markdown file with timestamp."""
++        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
++        safe_name = scenario_name.replace(" ", "_").lower()
++        phone = caller_phone.replace("+", "").replace("-", "").replace(".", "")
++        filename = f"{timestamp}_{safe_name}_{phone}.md"
++        filepath = self.conversations_dir / filename
++
++        md_lines = [
++            f"# Conversation Log: {scenario_name}",
++            "",
++            f"- **Caller Phone:** {caller_phone}",
++            f"- **Call SID:** {call_sid}",
++            f"- **Timestamp:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
++            "",
++            "## Conversation",
++            ""
++        ]
++
++        for turn in results:
++            md_lines.append(f"### Turn {turn['turn']}")
++            md_lines.append(f"**Caller:** {turn['input']}")
++            outcome = turn["result"]
++            md_lines.append(f"**AI Response:** {outcome.get('response','')}")
++            md_lines.append(f"- Intent: {outcome.get('intent','Unknown')}")
++            md_lines.append(f"- Caller Type: {outcome.get('caller_type','Unknown')}")
++            md_lines.append(f"- Next Action: {outcome.get('next_action','None')}")
++            md_lines.append("")
++
++        md_lines.append("---")
++        md_lines.append("*Generated by Conversation Simulator*")
++
++        with open(filepath, "w", encoding="utf-8") as f:
++            f.write("\n".join(md_lines))
++
++        print(f"📝 Conversation saved to {filepath}")
++
++    def simulate_conversation(self, scenario: Dict) -> List[Dict]:
++        """Simulate a multi-turn conversation based on a scenario."""
++        caller_phone = scenario["caller_phone"]
++        conversation = scenario["conversation"]
++        call_sid = self.generate_call_sid()
++        
++        print(f"\n🎭 Starting scenario: {scenario['name']}")
++        print(f"📱 Caller: {caller_phone}")
++        print(f"🆔 Call SID: {call_sid}")
++        print("=" * 60)
++        
++        results = []
++        
++        for turn_num, speech_text in enumerate(conversation, 1):
++            print(f"\n--- Turn: {turn_num} ---")
++            
++            if turn_num > 1:
++                delay = random.uniform(1, 3)
++                print(f"⏳ Waiting {delay:.1f}s...")
++                time.sleep(delay)
++            
++            result = self.client.process_call(caller_phone, speech_text, call_sid)
++            results.append({
++                "turn": turn_num,
++                "input": speech_text,
++                "result": result
++            })
++
++            if not result.get("success", False):
++                print("❌ Conversation stopped due to error")
++                break
++            break
++
++        # Save conversation log
++        self._save_conversation(scenario["name"], caller_phone, call_sid, results)
++        
++        return results
++
++def main():
++    client = ReceptionistClient()
++    
++    print("🏥 Checking API health...")
++    health = client.health_check()
++    print(f"Health status: {health}")
++    
++    if health.get("status") != "healthy":
++        print("❌ API is not healthy. Exiting.")
++        return
++    
++    simulator = ConversationSimulator(client)
++    
++     # Define conversation scenarios
++    scenarios = [
++        {
++            "name": "Appointment Scheduling",
++            "caller_phone": "+13388582100",
++            "conversation": [
++                "Hi, I want to schedule an appointment for next week."
++            ],
++        },
++        {
++            "name": "Appointment Scheduling",
++            "caller_phone": "+13388582100",
++            "conversation": [
++                "Hi, I want to schedule an appointment for next week.",
++                "I'm available Tuesday or Wednesday afternoon.",
++                "Tuesday at 2 PM works great for me.",
++                "Thank you, see you then!"
++            ]
++        },
++        {
++            "name": "Billing Inquiry",
++            "caller_phone": "+14155555678",
++            "conversation": [
++                "I have a question about my invoice.",
++                "I was charged twice for the same service last month.",
++                "The invoice number is INV-2024-001234.",
++                "Yes, please transfer me to billing department."
++            ]
++        },
++        {
++            "name": "General Information",
++            "caller_phone": "+14155559999",
++            "conversation": [
++                "What are your business hours?",
++                "Do you offer weekend appointments?",
++                "How much does a consultation cost?",
++                "Thank you for the information."
++            ]
++        },
++        {
++            "name": "Vendor Business Hours Change",
++            "caller_phone": "+1863.888.1787",
++            "conversation": [
++                "I need to change my business hours for next week monday to friday to Closed.",
++                "Please verify my business hours for next week",
++                "Thank you."
++            ]
++        },
++        
++        {
++            "name": "Emergency Call",
++            "caller_phone": "+14155551111",
++            "conversation": [
++                "This is an emergency! I need help immediately!",
++                "My system is down and I have a presentation in 30 minutes!",
++                "Yes, please connect me to technical support right away."
++            ]
++        },
++        {
++            "name": "Spam/Sales Call",
++            "caller_phone": "+18005551234",
++            "conversation": [
++                "Hello, I'm calling about your car's extended warranty.",
++                "We have a special offer just for you today.",
++                "This offer expires in the next 10 minutes."
++            ]
++        }
++    ]
++    
++    all_results = []
++    
++    for scenario in scenarios:
++        try:
++            results = simulator.simulate_conversation(scenario)
++            all_results.append({"scenario": scenario["name"], "results": results})
++            time.sleep(2)
++        except Exception as e:
++            print(f"❌ Error in scenario '{scenario['name']}': {e}")
++            continue
++        break
++    
++    print("\n🏁 Simulation complete!")
++
++if __name__ == "__main__":
++    main()
+\ No newline at end of file
+diff --git a/tests/run_tests.py b/tests/run_tests.py
+new file mode 100644
+index 0000000..11f41a5
+--- /dev/null
++++ b/tests/run_tests.py
+@@ -0,0 +1,305 @@
++# ============================== run_tests.py ==============================
++#!/usr/bin/env python3
++"""
++Master Test Controller for AI Receptionist App
++Runs all test categories and reports results in a tabulated format.
++
++# Run the master test controller
++python run_tests.py
++"""
++
++import subprocess
++import sys
++import time
++from pathlib import Path
++from dataclasses import dataclass
++from typing import List, Dict, Any
++from tabulate import tabulate
++import json
++import re
++
++
++@dataclass
++class TestResult:
++    """Test result data structure."""
++    category: str
++    file_path: str
++    passed: int
++    failed: int
++    errors: int
++    skipped: int
++    warnings: int
++    duration: float
++    status: str
++    details: str = ""
++
++
++class TestController:
++    """Master test controller for running and reporting test results."""
++    
++    def __init__(self):
++        self.results: List[TestResult] = []
++        self.test_categories = {
++            "Unit Tests - Models": "tests/test_unit_models.py",
++            "Unit Tests - Utilities": "tests/test_utilities.py", 
++            "Unit Tests - Services": "tests/test_services.py",
++            "Node/Workflow Tests": "tests/test_nodes.py",
++            "Integration Tests": "tests/test_integration.py",
++            "Access Control Tests": "tests/test_access_control.py",
++            "Performance Tests": "tests/test_performance.py",
++            "Regression Tests": "tests/test_regression.py",
++            "Workflow Tests": "tests/test_workflow.py"
++        }
++    
++    def run_pytest_category(self, category: str, file_path: str) -> TestResult:
++        """Run pytest for a specific test category."""
++        print(f"🧪 Running {category}...")
++        
++        start_time = time.time()
++        
++        try:
++            # Run pytest with JSON report
++            cmd = [
++                sys.executable, "-m", "pytest", 
++                file_path,
++                "--tb=short",
++                "--json-report",
++                "--json-report-file=temp_report.json",
++                "-v"
++            ]
++            
++            result = subprocess.run(
++                cmd, 
++                capture_output=True, 
++                text=True, 
++                timeout=300  # 5 minute timeout
++            )
++            
++            duration = time.time() - start_time
++            
++            # Parse JSON report if available
++            report_data = self._parse_json_report()
++            
++            if result.returncode == 0:
++                status = "✅ PASS"
++            elif result.returncode == 1:
++                status = "❌ FAIL" 
++            else:
++                status = "⚠️ ERROR"
++            
++            # Extract test counts from output
++            passed, failed, errors, skipped, warnings = self._parse_pytest_output(result.stdout)
++            
++            return TestResult(
++                category=category,
++                file_path=file_path,
++                passed=passed,
++                failed=failed,
++                errors=errors,
++                skipped=skipped,
++                warnings=warnings,
++                duration=duration,
++                status=status,
++                details=result.stdout.split('\n')[-3] if result.stdout else ""
++            )
++            
++        except subprocess.TimeoutExpired:
++            return TestResult(
++                category=category,
++                file_path=file_path,
++                passed=0, failed=0, errors=1, skipped=0, warnings=0,
++                duration=300.0,
++                status="⏰ TIMEOUT",
++                details="Test execution timed out after 5 minutes"
++            )
++        except FileNotFoundError:
++            return TestResult(
++                category=category,
++                file_path=file_path,
++                passed=0, failed=0, errors=0, skipped=0, warnings=0,
++                duration=0.0,
++                status="📁 NOT FOUND",
++                details=f"Test file {file_path} does not exist"
++            )
++        except Exception as e:
++            return TestResult(
++                category=category,
++                file_path=file_path,
++                passed=0, failed=0, errors=1, skipped=0, warnings=0,
++                duration=0.0,
++                status="💥 EXCEPTION",
++                details=str(e)
++            )
++    
++    def _parse_json_report(self) -> Dict[str, Any]:
++        """Parse pytest JSON report if available."""
++        try:
++            with open("temp_report.json", "r") as f:
++                return json.load(f)
++        except:
++            return {}
++    
++    def _parse_pytest_output(self, output: str) -> tuple:
++        """Parse pytest output to extract test counts."""
++        passed = failed = errors = skipped = warnings = 0
++        
++        # Look for summary line like: "2 passed, 1 failed, 3 warnings in 1.23s"
++        summary_pattern = r'(\d+)\s+(\w+)(?:,\s*)?'
++        matches = re.findall(summary_pattern, output)
++        
++        for count, status in matches:
++            count = int(count)
++            if 'passed' in status:
++                passed = count
++            elif 'failed' in status:
++                failed = count
++            elif 'error' in status:
++                errors = count
++            elif 'skipped' in status:
++                skipped = count
++            elif 'warning' in status:
++                warnings = count
++        
++        return passed, failed, errors, skipped, warnings
++    
++    def run_all_tests(self) -> None:
++        """Run all test categories."""
++        print("🚀 Starting AI Receptionist Test Suite")
++        print("=" * 60)
++        
++        total_start = time.time()
++        
++        for category, file_path in self.test_categories.items():
++            result = self.run_pytest_category(category, file_path)
++            self.results.append(result)
++        
++        total_duration = time.time() - total_start
++        
++        # Clean up temp files
++        try:
++            Path("temp_report.json").unlink(missing_ok=True)
++        except:
++            pass
++        
++        self.print_summary_report(total_duration)
++    
++    def print_summary_report(self, total_duration: float) -> None:
++        """Print a beautiful tabulated summary report."""
++        print("\n" + "=" * 80)
++        print("📊 TEST EXECUTION SUMMARY")
++        print("=" * 80)
++        
++        # Prepare table data
++        table_data = []
++        total_passed = total_failed = total_errors = total_skipped = total_warnings = 0
++        
++        for result in self.results:
++            table_data.append([
++                result.category,
++                result.status,
++                result.passed,
++                result.failed,
++                result.errors,
++                result.skipped,
++                result.warnings,
++                f"{result.duration:.2f}s"
++            ])
++            
++            total_passed += result.passed
++            total_failed += result.failed
++            total_errors += result.errors
++            total_skipped += result.skipped
++            total_warnings += result.warnings
++        
++        # Add totals row
++        table_data.append([
++            "─" * 20,
++            "─" * 10,
++            "─" * 6,
++            "─" * 6,
++            "─" * 6,
++            "─" * 7,
++            "─" * 8,
++            "─" * 8
++        ])
++        table_data.append([
++            "TOTALS",
++            self._get_overall_status(),
++            total_passed,
++            total_failed,
++            total_errors,
++            total_skipped,
++            total_warnings,
++            f"{total_duration:.2f}s"
++        ])
++        
++        # Print main results table
++        headers = ["Category", "Status", "Passed", "Failed", "Errors", "Skipped", "Warnings", "Duration"]
++        print(tabulate(table_data, headers=headers, tablefmt="grid"))
++        
++        # Print detailed failures if any
++        self._print_failure_details()
++        
++        # Print final summary
++        self._print_final_summary(total_passed, total_failed, total_errors, total_duration)
++    
++    def _get_overall_status(self) -> str:
++        """Determine overall test suite status."""
++        if any(r.status.startswith("❌") or r.status.startswith("💥") for r in self.results):
++            return "❌ FAIL"
++        elif any(r.status.startswith("⚠️") or r.status.startswith("⏰") for r in self.results):
++            return "⚠️ ISSUES"
++        elif any(r.status.startswith("📁") for r in self.results):
++            return "📁 INCOMPLETE"
++        else:
++            return "✅ PASS"
++    
++    def _print_failure_details(self) -> None:
++        """Print detailed information about failed tests."""
++        failed_tests = [r for r in self.results if not r.status.startswith("✅")]
++        
++        if failed_tests:
++            print("\n" + "=" * 80)
++            print("🔍 DETAILED FAILURE REPORT")
++            print("=" * 80)
++            
++            for result in failed_tests:
++                print(f"\n📂 {result.category}")
++                print(f"   Status: {result.status}")
++                print(f"   File: {result.file_path}")
++                if result.details:
++                    print(f"   Details: {result.details}")
++    
++    def _print_final_summary(self, passed: int, failed: int, errors: int, duration: float) -> None:
++        """Print final execution summary."""
++        print("\n" + "=" * 80)
++        print("🎯 FINAL SUMMARY")
++        print("=" * 80)
++        
++        summary_data = [
++            ["Total Tests Passed", f"✅ {passed}"],
++            ["Total Tests Failed", f"❌ {failed}"],
++            ["Total Errors", f"💥 {errors}"],
++            ["Total Execution Time", f"⏱️ {duration:.2f} seconds"],
++            ["Test Categories", f"📁 {len(self.test_categories)}"],
++        ]
++        
++        print(tabulate(summary_data, tablefmt="simple"))
++        
++        # Exit code based on results
++        if failed > 0 or errors > 0:
++            print(f"\n❌ Test suite FAILED with {failed} failures and {errors} errors")
++            sys.exit(1)
++        else:
++            print(f"\n✅ All tests PASSED! 🎉")
++            sys.exit(0)
++
++
++def main():
++    """Main entry point."""
++    controller = TestController()
++    controller.run_all_tests()
++
++
++if __name__ == "__main__":
++    main()
+\ No newline at end of file
+diff --git a/tests/test_access_control.py b/tests/test_access_control.py
+new file mode 100644
+index 0000000..7e1613a
+--- /dev/null
++++ b/tests/test_access_control.py
+@@ -0,0 +1,14 @@
++# ============================== tests/test_access_control.py ==============================
++import pytest
++
++def test_client_access_only_own_jobs(mock_db):
++    # TODO: simulate client requesting another client's job
++    pass
++
++def test_vendor_cannot_access_other_clients(mock_db):
++    # TODO: simulate vendor restricted query
++    pass
++
++def test_lead_has_no_private_access(mock_db):
++    # TODO: simulate lead fetching KB
++    pass
+\ No newline at end of file
+diff --git a/tests/test_models.py b/tests/test_models.py
+new file mode 100644
+index 0000000..4b88385
+--- /dev/null
++++ b/tests/test_models.py
+@@ -0,0 +1,26 @@
++# ============================== tests/test_unit_models.py ==============================
++import pytest
++from src.models.workflow_models import WorkflowState, CallerType, Intent
++from src.models.database_models import Client, Vendor
++
++
++def test_workflow_state_defaults():
++    state = WorkflowState()
++    assert state.processed is False
++    assert state.intent is None
++
++
++def test_workflow_state_serialization():
++    state = WorkflowState(caller_phone="+15551234567", intent=Intent.STATUS_CHECK)
++    data = state.model_dump()
++    assert "caller_phone" in data
++
++
++def test_invalid_enum_raises():
++    with pytest.raises(ValueError):
++        WorkflowState(intent="NOT_A_VALID_INTENT")  # wrong type
++
++
++def test_client_model_validation():
++    client = Client(name="Jane Doe", phone="+15551234567")
++    assert client.name == "Jane Doe"
+\ No newline at end of file
+diff --git a/tests/test_nodes.py b/tests/test_nodes.py
+new file mode 100644
+index 0000000..7fd4c96
+--- /dev/null
++++ b/tests/test_nodes.py
+@@ -0,0 +1,23 @@
++# ============================== tests/test_nodes.py ==============================
++import pytest
++from src.nodes.identity_checker import IdentityChecker
++from src.nodes.intent_analyzer import IntentAnalyzer
++from src.nodes.context_builder import ContextBuilder
++from src.nodes.response_generator import ResponseGenerator
++from src.models.workflow_models import WorkflowState, CallerType, Intent
++
++
++@pytest.mark.asyncio
++async def test_identity_checker_client():
++    checker = IdentityChecker()
++    state = WorkflowState(caller_phone="+15551234567")
++    new_state = await checker.run(state)
++    assert new_state.caller_type in (CallerType.CLIENT, CallerType.LEAD, CallerType.VENDOR)
++
++
++@pytest.mark.asyncio
++async def test_intent_analyzer_status_check():
++    analyzer = IntentAnalyzer()
++    state = WorkflowState(speech_text="What's the status of my job?")
++    new_state = await analyzer.run(state)
++    assert new_state.intent in (Intent.STATUS_CHECK, Intent.GENERIC)
+\ No newline at end of file
+diff --git a/tests/test_performance.py b/tests/test_performance.py
+new file mode 100644
+index 0000000..eac920a
+--- /dev/null
++++ b/tests/test_performance.py
+@@ -0,0 +1,15 @@
++# ============================== tests/test_performance.py ==============================
++import pytest
++import time
++from src.services.embedding_service import EmbeddingService
++
++
++@pytest.mark.asyncio
++async def test_embedding_large_document(monkeypatch):
++    service = EmbeddingService()
++    monkeypatch.setattr(service, "embed_text", lambda text: [0.1, 0.2, 0.3])
++    text = "word " * 12000  # long content
++    start = time.time()
++    _ = await service.create_embedding(text)
++    elapsed = time.time() - start
++    assert elapsed < 2  # embedding should be fast enough
+\ No newline at end of file
+diff --git a/tests/test_regression.py b/tests/test_regression.py
+new file mode 100644
+index 0000000..bbb6c48
+--- /dev/null
++++ b/tests/test_regression.py
+@@ -0,0 +1,18 @@
++# ============================== tests/test_regression.py ==============================
++import pytest
++from src.models.workflow_models import WorkflowState, CallerType, Intent
++
++@pytest.mark.asyncio
++async def test_client_status_end_to_end(ai_receptionist_realistic):
++    # TODO: simulate actual conversation loop with a mock LLM
++    pass
++
++@pytest.mark.asyncio
++async def test_vendor_reschedule(ai_receptionist_realistic):
++    # TODO: write a simulated vendor flow
++    pass
++
++@pytest.mark.asyncio
++async def test_lead_general_inquiry(ai_receptionist_realistic):
++    # TODO: write a simulated lead flow
++    pass
+\ No newline at end of file
+diff --git a/tests/test_services.py b/tests/test_services.py
+new file mode 100644
+index 0000000..f6691df
+--- /dev/null
++++ b/tests/test_services.py
+@@ -0,0 +1,31 @@
++# ============================== tests/test_services.py ==============================
++import pytest
++from unittest.mock import AsyncMock, MagicMock, patch
++from src.services.database_service import DatabaseService
++from src.services.embedding_service import EmbeddingService
++from src.services.context_service import ContextService
++
++
++@pytest.mark.asyncio
++async def test_database_connect_disconnect():
++    service = DatabaseService()
++    service.client = MagicMock()
++    await service.connect()
++    await service.disconnect()
++    service.client.close.assert_called()
++
++
++@pytest.mark.asyncio
++async def test_embedding_service_success(monkeypatch):
++    service = EmbeddingService()
++    monkeypatch.setattr(service, "embed_text", lambda text: [0.1, 0.2])
++    vec = await service.create_embedding("hello")
++    assert vec == [0.1, 0.2]
++
++
++@pytest.mark.asyncio
++async def test_embedding_service_fallback(monkeypatch):
++    service = EmbeddingService()
++    monkeypatch.setattr(service, "embed_text", lambda text: 1/0)  # force error
++    vec = await service.create_embedding("hello")
++    assert all(v == 0.0 for v in vec)
+\ No newline at end of file
+diff --git a/tests/test_utilites.py b/tests/test_utilites.py
+new file mode 100644
+index 0000000..cd9a728
+--- /dev/null
++++ b/tests/test_utilites.py
+@@ -0,0 +1,20 @@
++# ============================== tests/test_utilities.py ==============================
++import pytest
++from src.utilities import phone_utils, text_processing
++
++def test_normalize_phone():
++    assert phone_utils.normalize("+1 (555) 123-4567") == "+15551234567"
++
++def test_invalid_phone_raises():
++    with pytest.raises(ValueError):
++        phone_utils.normalize("abcd")
++
++def test_stop_words_removed():
++    text = "This is a simple test of the chunking"
++    processed = text_processing.remove_stopwords(text)
++    assert "is" not in processed
++
++def test_chunking_overlap():
++    text = "word " * 1200
++    chunks = text_processing.chunk_text(text, max_tokens=1000, overlap=100)
++    assert len(chunks) > 1
+\ No newline at end of file
+diff --git a/tests/tetst_integration.py b/tests/tetst_integration.py
+new file mode 100644
+index 0000000..909fdf0
+--- /dev/null
++++ b/tests/tetst_integration.py
+@@ -0,0 +1,18 @@
++# ============================== tests/test_integration.py ==============================
++import pytest
++from unittest.mock import AsyncMock
++from src.workflow.ai_receptionist_workflow import AIReceptionistWorkflow
++from src.models.workflow_models import CallerType, Intent
++
++
++@pytest.mark.asyncio
++async def test_end_to_end_client_flow(monkeypatch):
++    workflow = AIReceptionistWorkflow()
++    workflow.db_service.find_client_by_phone = AsyncMock(return_value={"name": "John"})
++    workflow.context_service.build_client_context = AsyncMock(return_value={"jobs": []})
++
++    call_data = {"caller_phone": "+15551234567", "speech_text": "status?", "call_sid": "1"}
++    result = await workflow.process_call(call_data)
++
++    assert result.caller_type == CallerType.CLIENT
++    assert result.intent in (Intent.STATUS_CHECK, Intent.GENERIC)
+\ No newline at end of file
+diff --git a/uv.lock b/uv.lock
+index 388ba2c..d3fff4c 100644
+--- a/uv.lock
++++ b/uv.lock
+@@ -1,5 +1,5 @@
+ version = 1
+-revision = 3
++revision = 2
+ requires-python = ">=3.10"
+ resolution-markers = [
+     "python_full_version >= '3.13'",
+@@ -29,6 +29,7 @@ dependencies = [
+     { name = "click" },
+     { name = "colorama" },
+     { name = "dill" },
++    { name = "dotenv" },
+     { name = "faker" },
+     { name = "fastapi" },
+     { name = "filetype" },
+@@ -79,6 +80,7 @@ dependencies = [
+     { name = "pymongo" },
+     { name = "pytest" },
+     { name = "pytest-asyncio" },
++    { name = "pytest-json-report" },
+     { name = "pytest-mock" },
+     { name = "python-dateutil" },
+     { name = "python-dotenv" },
+@@ -94,6 +96,7 @@ dependencies = [
+     { name = "sniffio" },
+     { name = "sqlalchemy" },
+     { name = "structlog" },
++    { name = "tabulate" },
+     { name = "tenacity" },
+     { name = "typing-extensions" },
+     { name = "typing-inspection" },
+@@ -149,6 +152,7 @@ requires-dist = [
+     { name = "click" },
+     { name = "colorama" },
+     { name = "dill" },
++    { name = "dotenv", specifier = ">=0.9.9" },
+     { name = "faker", specifier = ">=37.8.0" },
+     { name = "fastapi", specifier = ">=0.117.1" },
+     { name = "filetype" },
+@@ -210,6 +214,7 @@ requires-dist = [
+     { name = "pytest", marker = "extra == 'testing'" },
+     { name = "pytest-asyncio", specifier = ">=1.2.0" },
+     { name = "pytest-asyncio", marker = "extra == 'testing'" },
++    { name = "pytest-json-report", specifier = ">=1.5.0" },
+     { name = "pytest-mock", specifier = ">=3.15.1" },
+     { name = "pytest-mock", marker = "extra == 'testing'" },
+     { name = "python-dateutil" },
+@@ -227,6 +232,7 @@ requires-dist = [
+     { name = "sniffio" },
+     { name = "sqlalchemy" },
+     { name = "structlog" },
++    { name = "tabulate", specifier = ">=0.9.0" },
+     { name = "tenacity" },
+     { name = "tomlkit", marker = "extra == 'dev'" },
+     { name = "typing-extensions" },
+@@ -605,6 +611,17 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/ba/5a/18ad964b0086c6e62e2e7500f7edc89e3faa45033c71c1893d34eed2b2de/dnspython-2.8.0-py3-none-any.whl", hash = "sha256:01d9bbc4a2d76bf0db7c1f729812ded6d912bd318d3b1cf81d30c0f845dbf3af", size = 331094, upload-time = "2025-09-07T18:57:58.071Z" },
+ ]
+ 
++[[package]]
++name = "dotenv"
++version = "0.9.9"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "python-dotenv" },
++]
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/b2/b7/545d2c10c1fc15e48653c91efde329a790f2eecfbbf2bd16003b5db2bab0/dotenv-0.9.9-py2.py3-none-any.whl", hash = "sha256:29cf74a087b31dafdb5a446b6d7e11cbce8ed2741540e2339c69fbef92c94ce9", size = 1892, upload-time = "2025-02-19T22:15:01.647Z" },
++]
++
+ [[package]]
+ name = "exceptiongroup"
+ version = "1.3.0"
+@@ -2617,6 +2634,31 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/04/93/2fa34714b7a4ae72f2f8dad66ba17dd9a2c793220719e736dda28b7aec27/pytest_asyncio-1.2.0-py3-none-any.whl", hash = "sha256:8e17ae5e46d8e7efe51ab6494dd2010f4ca8dae51652aa3c8d55acf50bfb2e99", size = 15095, upload-time = "2025-09-12T07:33:52.639Z" },
+ ]
+ 
++[[package]]
++name = "pytest-json-report"
++version = "1.5.0"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "pytest" },
++    { name = "pytest-metadata" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/4f/d3/765dae9712fcd68d820338908c1337e077d5fdadccd5cacf95b9b0bea278/pytest-json-report-1.5.0.tar.gz", hash = "sha256:2dde3c647851a19b5f3700729e8310a6e66efb2077d674f27ddea3d34dc615de", size = 21241, upload-time = "2022-03-15T21:03:10.2Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/81/35/d07400c715bf8a88aa0c1ee9c9eb6050ca7fe5b39981f0eea773feeb0681/pytest_json_report-1.5.0-py3-none-any.whl", hash = "sha256:9897b68c910b12a2e48dd849f9a284b2c79a732a8a9cb398452ddd23d3c8c325", size = 13222, upload-time = "2022-03-15T21:03:08.65Z" },
++]
++
++[[package]]
++name = "pytest-metadata"
++version = "3.1.1"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "pytest" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/a6/85/8c969f8bec4e559f8f2b958a15229a35495f5b4ce499f6b865eac54b878d/pytest_metadata-3.1.1.tar.gz", hash = "sha256:d2a29b0355fbc03f168aa96d41ff88b1a3b44a3b02acbe491801c98a048017c8", size = 9952, upload-time = "2024-02-12T19:38:44.887Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/3e/43/7e7b2ec865caa92f67b8f0e9231a798d102724ca4c0e1f414316be1c1ef2/pytest_metadata-3.1.1-py3-none-any.whl", hash = "sha256:c8e0844db684ee1c798cfa38908d20d67d0463ecb6137c72e91f418558dd5f4b", size = 11428, upload-time = "2024-02-12T19:38:42.531Z" },
++]
++
+ [[package]]
+ name = "pytest-mock"
+ version = "3.15.1"
+@@ -3216,6 +3258,15 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/a2/09/77d55d46fd61b4a135c444fc97158ef34a095e5681d0a6c10b75bf356191/sympy-1.14.0-py3-none-any.whl", hash = "sha256:e091cc3e99d2141a0ba2847328f5479b05d94a6635cb96148ccb3f34671bd8f5", size = 6299353, upload-time = "2025-04-27T18:04:59.103Z" },
+ ]
+ 
++[[package]]
++name = "tabulate"
++version = "0.9.0"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/ec/fe/802052aecb21e3797b8f7902564ab6ea0d60ff8ca23952079064155d1ae1/tabulate-0.9.0.tar.gz", hash = "sha256:0095b12bf5966de529c0feb1fa08671671b3368eec77d7ef7ab114be2c068b3c", size = 81090, upload-time = "2022-10-06T17:21:48.54Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/40/44/4a5f08c96eb108af5cb50b41f76142f0afa346dfa99d5296fe7202a11854/tabulate-0.9.0-py3-none-any.whl", hash = "sha256:024ca478df22e9340661486f85298cff5f6dcdba14f3813e8830015b9ed1948f", size = 35252, upload-time = "2022-10-06T17:21:44.262Z" },
++]
++
+ [[package]]
+ name = "tenacity"
+ version = "9.1.2"
+```
+
