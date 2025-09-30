@@ -1,17 +1,57 @@
 # ==================== main.py ====================
 """
 Main entry point for the AI Receptionist system.
-"""
+uvicorn main:app --reload
 
+run_test.py -  To do Basic Tesing of the Agents
+replicate_conversations.py - Run some conversations to see the results.
+"""
+import logging
+import logging.config
+from logging.handlers import RotatingFileHandler
 import asyncio
 import json
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any
 
+
 from src.workflow.workflow_runner import WorkflowRunner
 from config.settings import settings
 
+LOGGING_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "default": {
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        },
+    },
+    "handlers": {
+        "default": {
+            "level": "INFO",
+            "formatter": "default",
+            "class": "logging.StreamHandler",
+        },
+        "file": {
+            "level": "INFO",
+            "formatter": "default",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": "./logs/ai_receptionist.log",
+            "maxBytes": 10485760,
+            "backupCount": 5,
+        },
+    },
+    "root": {
+        "level": "INFO",
+        "handlers": ["default", "file"]
+    },
+}
+
+logging.config.dictConfig(LOGGING_CONFIG)
+logger = logging.getLogger("ai_receptionist")
+
+# Initialize FastAPI
 
 app = FastAPI(
     title="AI Receptionist System",
@@ -42,13 +82,13 @@ class CallResponse(BaseModel):
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
+    print("""Health check endpoint.""")
     return {"status": "healthy", "environment": settings.environment}
 
 
 @app.post("/process-call", response_model=CallResponse)
 async def process_call(request: CallRequest):
-    """Process an incoming call through the AI Receptionist workflow."""
+    logger.info("Process an incoming call through the AI Receptionist workflow.")
     try:
         call_data = {
             "caller_phone": request.caller_phone,

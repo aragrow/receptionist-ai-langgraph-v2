@@ -12,7 +12,7 @@ class ContextBuilder:
         self.context_service = context_service
     
     async def __call__(self, state: WorkflowState) -> WorkflowState:
-        """Build context based on caller type."""
+        print("""Build context based on caller type.""")
         try:
             if state.caller_type == CallerType.CLIENT and state.client:
                 state.context_data = await self.context_service.build_client_context(state.client)

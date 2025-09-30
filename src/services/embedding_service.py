@@ -3,25 +3,31 @@
 
 import os
 import re
+from dotenv import load_dotenv
 from typing import List, Optional
 import google.generativeai as genai
 from google.generativeai.types import EmbedContentResponse
 
 from config.settings import settings
 
+# Load .env into environment (default: project root directory)
+load_dotenv()
 
 class EmbeddingService:
     """Service for text embedding using Google's text-embedding-004 model."""
     
     def __init__(self):
         # Configure Google AI with API key
-        api_key = os.getenv("GOOGLE_API_KEY")
+        api_key = os.getenv("LLM__GOOGLE_API_KEY")
         if not api_key:
-            raise ValueError("GOOGLE_API_KEY environment variable is required")
+            raise ValueError("API_KEY environment variable is required")
         
         genai.configure(api_key=api_key)
-        self.model_name = "models/text-embedding-004"
-        
+
+        self.model_name = os.getenv("LLM__MODEL_NAME")
+        if not self.model_name:
+            raise ValueError("MODEL environment variable is required")
+
         # Verify model is available
         try:
             # Test with a simple embedding

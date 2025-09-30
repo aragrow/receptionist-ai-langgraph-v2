@@ -4,6 +4,7 @@ import faker
 import os
 import json
 import sys
+from bson import ObjectId
 
 from datetime import datetime, timedelta
 from pymongo import MongoClient
@@ -154,7 +155,7 @@ def generate_vendors(n=25):
     vendors = []
     for _ in range(n):
         vendors.append({
-            "_id": generate_guid(),
+            "_id": ObjectId(),
             "name": fake.company(),
             "contact_person": fake.name(),
             "phone": fake.phone_number(),
@@ -166,7 +167,7 @@ def generate_vendors(n=25):
             "zip": fake.zipcode(),
             "country": "USA",
             "service_type": random.choice(["residential_cleaning", "commercial_cleaning"]),
-            "notes": f"Open {random.choice(['Mon–Fri', 'Mon–Sat'])} {random.choice(['8am–5pm', '9am–6pm'])}. {random.choice(['Eco-friendly products available.', 'Specializes in deep cleaning.', 'Discounts for recurring clients.'])}"
+            "notes": f"Business Hours: {get_vendor_business_hours()}. Services: {get_vendor_services()}"
         })
     return vendors
 
@@ -175,7 +176,7 @@ def generate_clients(n=25, vendors=[]):
     clients, properties, jobs, visits, kb = [], [], [], [], []
     
     for _ in range(n):
-        client_id = generate_guid()
+        client_id = ObjectId()
         client_city = fake.city()
         client = {
             "_id": client_id,
@@ -191,15 +192,17 @@ def generate_clients(n=25, vendors=[]):
             "notes": get_client_notes()
         }
         clients.append(client)
+        kb_id = ObjectId()
         kb.append({
-            "_id": client_id,
+            "_id": kb_id, 
+            "entity_id": client_id,
             "content": f"Client {client['name']} in {client_city}. Notes: {client['notes']}",
             "embedding": []
         })
 
         # Properties
         for _ in range(random.randint(2, 5)):
-            property_id = generate_guid()
+            property_id = ObjectId()
             property_obj = {
                 "_id": property_id,
                 "client_id": client_id,
@@ -209,13 +212,15 @@ def generate_clients(n=25, vendors=[]):
                 "state": fake.state_abbr(),
                 "zip": fake.zipcode(),
                 "country": "USA",
-                "property_type": random.choice(["residential", "commercial"]),
+                "property_type": random.choice(["residential", "commercial", "residential/commercial"]),
                 "size": f"{random.randint(800, 5000)} sqft",
                 "notes": get_property_notes()
             }
             properties.append(property_obj)
+            kb_id = ObjectId()
             kb.append({
-                "_id": property_id,
+                "_id": kb_id,
+                "entity_id": property_id,
                 "content": f"Property in {client_city}, type {property_obj['property_type']}, size {property_obj['size']}. Notes: {property_obj['notes']}",
                 "embedding": []
             })
@@ -225,7 +230,7 @@ def generate_clients(n=25, vendors=[]):
             active_job_index = random.randint(0, num_jobs - 1)
 
             for j in range(num_jobs):
-                job_id = generate_guid()
+                job_id = ObjectId()
                 vendor = random.choice([v for v in vendors if v["city"] == client_city] or vendors)
                 scheduled_date = datetime.now() + timedelta(days=random.randint(1, 30))
                 status = "in-progress" if j == active_job_index else "completed"
@@ -246,14 +251,16 @@ def generate_clients(n=25, vendors=[]):
                     "notes": get_job_notes()
                 }
                 jobs.append(job_obj)
+                kb_id = ObjectId()
                 kb.append({
-                    "_id": job_id,
+                    "_id": kb_id,
+                    "entity_id": job_id,
                     "content": f"Job {job_obj['title']} for property {property_id}. Status: {status}. Notes: {job_obj['notes']}",
                     "embedding": []
                 })
 
                 # Visits
-                visit_id = generate_guid()
+                visit_id = ObjectId()
                 visit_obj = {
                     "_id": visit_id,
                     "job_id": job_id,
@@ -264,8 +271,12 @@ def generate_clients(n=25, vendors=[]):
                     "notes": get_visit_notes()
                 }
                 visits.append(visit_obj)
+
+                kb_id = ObjectId()
                 kb.append({
-                    "_id": visit_id,
+                    "_id": kb_id,
+                    "entity_id": visit_id,
+                    "entity_type": "visit",
                     "content": f"Visit for job {job_id} on {visit_obj['visit_date']} by {visit_obj['technician_name']}. Status: {visit_obj['status']}. Notes: {visit_obj['notes']}",
                     "embedding": []
                 })

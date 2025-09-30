@@ -2,7 +2,7 @@
 """Database models for MongoDB collections using Pydantic."""
 
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Any
 from pydantic import BaseModel, Field, ConfigDict
 from bson import ObjectId
 
@@ -15,10 +15,21 @@ class PyObjectId(ObjectId):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
-        if not ObjectId.is_valid(v):
+    def validate(cls, v: Any, info: Any = None):
+        """
+        Accept the optional 'info' arg that Pydantic v2 may supply.
+        This keeps backward compatible behavior for v1 and v2.
+        """
+        if isinstance(v, ObjectId):
+            return v
+        try:
+            # Coerce to string first to handle ObjectId objects and strings
+            v_str = str(v)
+            if not ObjectId.is_valid(v_str):
+                raise ValueError("Invalid ObjectId")
+            return ObjectId(v_str)
+        except Exception:
             raise ValueError("Invalid ObjectId")
-        return ObjectId(v)
 
     @classmethod
     def __get_pydantic_json_schema__(cls, schema, handler):
@@ -42,6 +53,14 @@ class BaseDocument(BaseModel):
         json_encoders={ObjectId: str},
     )
 
+class AgentActionPrompt(BaseDocument):
+    """ Agent Action Prompts model."""
+
+    agent: str
+    action: str
+    prompt: str
+    active: bool = True
+    level: int
 
 class Client(BaseDocument):
     """Client model."""

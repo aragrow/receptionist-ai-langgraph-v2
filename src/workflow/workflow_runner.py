@@ -1,5 +1,10 @@
 # ==================== src/workflow/workflow_runner.py ====================
 """Workflow Runner for AI Receptionist. Command-line interface and programmatic runner for the workflow."""
+import logging
+# Get a logger instance for your module
+logger = logging.getLogger(__name__)
+# Set the logging level (e.g., INFO, DEBUG, WARNING, ERROR, CRITICAL)
+logger.setLevel(logging.INFO)
 
 import asyncio
 import json
@@ -22,14 +27,18 @@ class WorkflowRunner:
             await self.workflow.initialize()
             
             result = await self.workflow.process_call(call_data)
+            logger.info(f"Workflow result intent: {result}")         
+            caller_type = result.get('caller_type', 'lead')
+            logger.info(f"Workflow result caller type: {caller_type}")
+
             
             return {
                 "success": True,
-                "caller_type": result.caller_type,
-                "intent": result.intent,
-                "response": result.response_text,
-                "next_action": result.next_action,
-                "error": result.error_message
+                "caller_type": result.get('caller_type', 'lead'),
+                "intent": result.get('intent', 'generic'),
+                "response": result.get('response_text','Sorry I can\'t help you right now?'),
+                "next_action": result.get('next_action', 'None'),
+                "error": result.get('error_message','Unkown error')
             }
             
         except Exception as e:

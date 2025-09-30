@@ -275,7 +275,15 @@ The AI receptionist should be able to answer **client and vendor questions** whi
     I want to use google.generativeai to generate embeddings.  The model should be: models/text-embedding-004
     I want to use google.generativeai to chat with the data.  The model should be: gemini-1.5-flash
     If the text to vectorize is over 1000 tokens, then break in chucks, with 100 tokens overlap.
+    Make sure that v2 of pydantic is implemented
+    Create test scripts using pytest to test all the functionality.  The tests must be controller by a single test service.
+    Each test should return to the test service whether or not the test passed, if not return message too.
 
+
+# Testing
+    create a list with all the recomended tests to run before promoting to production.
+    Use that list to create tests scripts, name them for what they do.
+    Create a master test script controller to run all tests.  Report the results in nice tabulated table.
 # App Hierchacy Output
 
  .env

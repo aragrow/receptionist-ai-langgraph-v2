@@ -1,5 +1,10 @@
 # ==================== src/workflow/ai_receptionist_workflow.py ====================
 """LangGraph workflow for AI Receptionist analysis."""
+import logging
+# Get a logger instance for your module
+logger = logging.getLogger(__name__)
+# Set the logging level (e.g., INFO, DEBUG, WARNING, ERROR, CRITICAL)
+logger.setLevel(logging.INFO)
 
 from langgraph.graph import StateGraph, END
 
@@ -22,7 +27,7 @@ class AIReceptionistWorkflow:
         # Initialize nodes
         self.identity_checker = IdentityChecker(self.db_service)
         self.context_builder = ContextBuilder(self.context_service)
-        self.intent_analyzer = IntentAnalyzer()
+        self.intent_analyzer = IntentAnalyzer(self.db_service)
         self.response_generator = ResponseGenerator()
         
         # Build workflow
@@ -34,14 +39,14 @@ class AIReceptionistWorkflow:
         
         # Add nodes
         workflow.add_node("identity_check", self.identity_checker)
-        workflow.add_node("context_build", self.context_builder)
+        #workflow.add_node("context_build", self.context_builder)
         workflow.add_node("intent_analysis", self.intent_analyzer)
         workflow.add_node("response_generation", self.response_generator)
         
         # Define edges
         workflow.set_entry_point("identity_check")
-        workflow.add_edge("identity_check", "context_build")
-        workflow.add_edge("context_build", "intent_analysis")
+        workflow.add_edge("identity_check", "intent_analysis")
+        #workflow.add_edge("context_build", "intent_analysis")
         workflow.add_edge("intent_analysis", "response_generation")
         workflow.add_edge("response_generation", END)
         
@@ -56,8 +61,9 @@ class AIReceptionistWorkflow:
         await self.db_service.disconnect()
     
     async def process_call(self, call_data: dict) -> WorkflowState:
-        """Process an incoming call through the workflow."""
+        logger.info("Processing the call.")
         # Create initial state
+
         initial_state = WorkflowState(
             call_sid=call_data.get("call_sid"),
             caller_phone=call_data.get("caller_phone"),

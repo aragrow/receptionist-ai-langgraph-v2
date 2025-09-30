@@ -25,6 +25,7 @@ class Intent(str, Enum):
     COMPLAINT = "complaint"
     SALES_INQUIRY = "sales_inquiry"
     SCHEDULE_UPDATE = "schedule_update"
+    PROFILE_UPDATE = "profile_update"
     OTHER = "other"
 
 
@@ -54,6 +55,11 @@ class WorkflowState(BaseModel):
     # Processing flags
     processed: bool = False
     error_message: Optional[str] = None
+    
+    turn_count: Optional[int] = 0
+    time_details: Optional[str] = None
+    
+    agent_prompt: Optional[str] = None
     
     class Config:
         use_enum_values = True

@@ -1,50 +1,88 @@
 # ==================== src/nodes/intent_analyzer.py ====================
-"""Intent analyzer node."""
+"""Intent analyzer node with Google Gemini integration."""
+import logging
+# Get a logger instance for your module
+logger = logging.getLogger(__name__)
+# Set the logging level (e.g., INFO, DEBUG, WARNING, ERROR, CRITICAL)
+logger.setLevel(logging.INFO)
 
 import re
+import os
+import json
+import google.generativeai as genai
 from src.models.workflow_models import WorkflowState, Intent
+from dotenv import load_dotenv
+from src.services.database_service import DatabaseService
 
+load_dotenv()
 
 class IntentAnalyzer:
-    """Node for analyzing caller intent."""
+    """Node for analyzing caller intent using Google Gemini."""
     
-    def __init__(self):
-        self.intent_patterns = {
-            Intent.STATUS_CHECK: [
-                r"status", r"progress", r"update", r"how.*going", r"when.*complete"
-            ],
-            Intent.SERVICE_REQUEST: [
-                r"need.*service", r"repair", r"fix", r"maintenance", r"problem"
-            ],
-            Intent.COMPLAINT: [
-                r"complain", r"issue", r"problem", r"dissatisfied", r"unhappy"
-            ],
-            Intent.SALES_INQUIRY: [
-                r"price", r"cost", r"quote", r"estimate", r"how much"
-            ]
-        }
+    def __init__(self, db_service: DatabaseService):
+        self.db_service = db_service
+
+        # Configure Google AI with API key
+        api_key = os.getenv("LLM__GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError("API_KEY environment variable is required")
+        
+        genai.configure(api_key=api_key)
+
+        self.model_name = os.getenv("LLM__MODEL_NAME")
+        if not self.model_name:
+            raise ValueError("MODEL environment variable is required")
+        
+    async def _create_intent_prompt(self, state: WorkflowState) -> WorkflowState:
+        print("""Create a structured prompt for Gemini to analyze intent.""")
+        agent_prompt = await self.db_service.find_agent_action_prompt('receptionist','intent_analysis',1)
+        
+        # Build prompt dynamically with context
+        prompt = f"""
+            You are an AI receptionist assistant having a phone conversation. 
+            {agent_prompt}.
+
+            Current Context:
+            - Caller Type: {state.caller_type}
+            - Caller Speech: {state.speech_text}
+        """
+
+        state.agent_prompt = prompt
+        return state
     
-    async def __call__(self, state: WorkflowState) -> WorkflowState:
-        """Analyze caller intent from speech."""
-        if not state.speech_text:
-            state.intent = Intent.GENERAL_INQUIRY
-            return state
-        
-        text = state.speech_text.lower()
-        
+    async def _analyze_with_gemini(self, state: WorkflowState) -> str:
+        print("""Use Google Gemini to analyze intent.""")
         try:
-            # Check patterns for each intent
-            for intent, patterns in self.intent_patterns.items():
-                for pattern in patterns:
-                    if re.search(pattern, text):
-                        state.intent = intent
-                        return state
+            state = await self._create_intent_prompt(state)
+
+            # Configure Gemini model
+            model = genai.GenerativeModel(self.model_name)
             
-            # Default intent
-            state.intent = Intent.GENERAL_INQUIRY
+            # Generate response
+            response = model.generate_content(state.agent_prompt)
+            
+            # Parse response
+            intent_value = response.text.strip().lower()
+    
+            return intent_value
             
         except Exception as e:
-            state.error_message = f"Intent analysis failed: {str(e)}"
-            state.intent = Intent.GENERAL_INQUIRY
+            print(f"⚠️ Gemini intent analysis failed: {e}")
+            return "Customer Service"
+    
+    async def __call__(self, state: WorkflowState) -> WorkflowState:
+        """Analyze caller intent from speech using Gemini + regex fallback."""
+        if not state.speech_text:
+            state.intent = "Customer Service"
+            return state
         
-        return state    
+        try:
+            # Primary: Use Gemini for intent analysis
+            state.intent = await self._analyze_with_gemini(state)
+            
+        except Exception as e:
+            # Fallback: Use regex patterns
+            state.error_message = f"Intent analysis error: {str(e)}"
+            state.intent = self._fallback_regex_analysis(state.speech_text)
+        
+        return state

@@ -3,60 +3,64 @@
 
 from typing import Dict, Any, List
 from bson import ObjectId
-
+import sys
 from src.models.workflow_models import WorkflowState, CallerType
 from src.models.database_models import Client, Vendor
 from .database_service import DatabaseService
 
 
 class ContextService:
-    """Service for building caller context."""
     
     def __init__(self, db_service: DatabaseService):
+        print("Initializing ContextService")
         self.db_service = db_service
     
     async def build_client_context(self, client: Client) -> Dict[str, Any]:
-        """Build comprehensive context for a client."""
-        context = {
-            "client": client.dict(),
-            "properties": [],
-            "jobs": [],
-            "visits": [],
-            "vendors": []
-        }
-        
-        # Get client properties
-        properties = await self.db_service.get_client_properties(client.id)
-        context["properties"] = [prop.dict() for prop in properties]
-        
-        # Get jobs for all properties
-        all_jobs = []
-        vendor_ids = set()
-        
-        for prop in properties:
-            jobs = await self.db_service.get_property_jobs(prop.id)
-            all_jobs.extend(jobs)
-            vendor_ids.update(job.vendor_id for job in jobs)
-        
-        context["jobs"] = [job.dict() for job in all_jobs]
-        
-        # Get visits for all jobs
-        all_visits = []
-        for job in all_jobs:
-            visits = await self.db_service.get_job_visits(job.id)
-            all_visits.extend(visits)
-        
-        context["visits"] = [visit.dict() for visit in all_visits]
-        
-        # Get vendor information
-        vendors = []
-        for vendor_id in vendor_ids:
-            vendor_doc = await self.db_service.db.vendors.find_one({"_id": vendor_id})
-            if vendor_doc:
-                vendors.append(Vendor(**vendor_doc).dict())
-        
-        context["vendors"] = vendors
-        
+        print("""Build comprehensive context for a client.""")
+        try:
+            context = {
+                "client": client.dict(),
+                "properties": [],
+                "jobs": [],
+                "visits": [],
+                "vendors": []
+            }
+            
+            # Get client properties
+            properties = await self.db_service.get_client_properties(client.id)
+            context["properties"] = [prop.dict() for prop in properties]
+            
+            # Get jobs for all properties
+            all_jobs = []
+            vendor_ids = set()
+            
+            for prop in properties:
+                jobs = await self.db_service.get_property_jobs(prop.id)
+                all_jobs.extend(jobs)
+                vendor_ids.update(job.vendor_id for job in jobs)
+            
+            context["jobs"] = [job.dict() for job in all_jobs]
+            
+            # Get visits for all jobs
+            all_visits = []
+            for job in all_jobs:
+                visits = await self.db_service.get_job_visits(job.id)
+                all_visits.extend(visits)
+            
+            context["visits"] = [visit.dict() for visit in all_visits]
+            
+            # Get vendor information
+            vendors = []
+            for vendor_id in vendor_ids:
+                vendor_doc = await self.db_service.db.vendors.find_one({"_id": vendor_id})
+                if vendor_doc:
+                    vendors.append(Vendor(**vendor_doc).dict())
+            
+            context["vendors"] = vendors
+        except Exception as e:
+            print (f"Errror Build comprehensive context for a client: {str(e)}")
+            sys.exit(1)  
+
         return context
     
     async def build_vendor_context(self, vendor: Vendor) -> Dict[str, Any]:
