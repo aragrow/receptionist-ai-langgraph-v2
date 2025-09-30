@@ -3,7 +3,6 @@
 
 import html
 import os
-import google.generativeai as genai
 from src.models.workflow_models import WorkflowState, CallerType, Intent
 from config.settings import settings
 from dotenv import load_dotenv

@@ -273,7 +273,7 @@ The AI receptionist should be able to answer **client and vendor questions** whi
     All data should be escaped before displaying to the screen.
     Remove the Stop Words from the text to vectorize.
     I want to use google.generativeai to generate embeddings.  The model should be: models/text-embedding-004
-    I want to use google.generativeai to chat with the data.  The model should be: gemini-1.5-flash
+    I want to use google.generativeai to chat with the data.  The model should be: gemini-2.5-flash-lite
     If the text to vectorize is over 1000 tokens, then break in chucks, with 100 tokens overlap.
     Make sure that v2 of pydantic is implemented
     Create test scripts using pytest to test all the functionality.  The tests must be controller by a single test service.
