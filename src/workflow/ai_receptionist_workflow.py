@@ -1,22 +1,34 @@
 # ==================== src/workflow/ai_receptionist_workflow.py ====================
 """
 LangGraph workflow for AI Receptionist with 3-tier routing.
-Updated to use L1, L2, and L3 agents with intelligent routing.
+Updated to use RoutingService for intelligent routing decisions.
 """
 import logging
 from typing import Literal
 
 from langgraph.graph import StateGraph, END
 
-from src.models.workflow_models import WorkflowState, CallerType
-from src.models.agent_models import RoutingDecision
+from src.models.workflow_models import WorkflowState
 from src.services.database_service import DatabaseService
-from src.services.context_service import ContextService
+from src.services.routing_service import RoutingService
 
 # Import agents
 from src.agents.receptionist_l1 import ReceptionistL1
 from src.agents.l2_agent_factory import L2AgentFactory
 from src.agents.l3_agent_factory import L3AgentFactory
+
+from src.nodes.clarification_handler import ClarificationHandler
+from src.nodes.human_escalation import HumanEscalationNode
+from src.services.ticket_service import TicketService
+from src.services.llm_service import LLMService
+
+# Import routing conditions
+from src.workflow.routing_conditions import (
+    check_l1_confidence,
+    check_l2_confidence,
+    check_max_clarifications
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,21 +47,32 @@ class AIReceptionistWorkflow:
     def __init__(self):
         """Initialize the workflow with all necessary services and agents."""
         self.db_service = DatabaseService()
-        self.context_service = ContextService(self.db_service)
         
+        # Initialize routing service
+        self.routing_service = RoutingService()
+
         # Initialize L1 agent
         self.receptionist_l1 = ReceptionistL1(self.db_service)
         
         # Initialize L2 factory
         self.l2_factory = L2AgentFactory(self.db_service)
         
-        # Initialize L3 factory ✅ NEW - No longer placeholder!
+        # Initialize L3 factory
         self.l3_factory = L3AgentFactory(self.db_service)
         
+        # Initialize LLM service (if not already created)
+        self.llm_service = LLMService()  # or get it from somewhere else
+    
+        # Initialize ticket service
+        self.ticket_service = TicketService(db=self.db_service.db)
+    
+        self.clarification_handler = ClarificationHandler(llm_service=self.llm_service)
+        self.human_escalation_node_handler = HumanEscalationNode(ticket_service=self.ticket_service)
+
         # Build workflow graph
         self.workflow = self._build_workflow()
         
-        logger.info("AIReceptionistWorkflow initialized with 3-tier routing")
+        logger.info("AIReceptionistWorkflow initialized with RoutingService")
     
     # ============ Node Functions ============
     
@@ -69,9 +92,13 @@ class AIReceptionistWorkflow:
             # Run L1 agent
             state = await self.receptionist_l1.process(state)
             
+            # Update current tier
+            state.current_tier = "L1"
+            
             logger.info(
                 f"L1 complete: intent={state.intent_l1.name if state.intent_l1 else 'none'}, "
-                f"caller_type={state.caller_type.value if state.caller_type and hasattr(state.caller_type, 'value') else state.caller_type or 'unknown'}"
+                f"caller_type={state.caller_type.value if state.caller_type and hasattr(state.caller_type, 'value') else state.caller_type or 'unknown'}, "
+                f"confidence={state.intent_l1.confidence if state.intent_l1 else 0.0:.2f}"
             )
             
             return state
@@ -88,7 +115,7 @@ class AIReceptionistWorkflow:
         L2 Node: Intent refinement and entity extraction.
         
         Args:
-            state: Current workflow state with L1 classification
+            state: Current workflow state
         
         Returns:
             Updated state with L2 refinement
@@ -96,18 +123,26 @@ class AIReceptionistWorkflow:
         logger.info("Executing L2 processing node")
         
         try:
-            # Get appropriate L2 agent based on caller type
-            caller_type = state.caller_type or CallerType.UNKNOWN
-            l2_agent = self.l2_factory.create_agent(caller_type)
+            # Select appropriate L2 agent using routing service
+            l2_agent_type = self.routing_service.select_l2_agent(state)
+            state.selected_l2_agent = l2_agent_type
             
-            logger.info(f"Selected L2 agent: {l2_agent.agent_name}")
+            logger.info(f"Selected L2 agent: {l2_agent_type}")
             
-            # Run L2 agent
+            # Get L2 agent from factory
+            l2_agent = self.l2_factory.get_agent(l2_agent_type)
+            
+            # Process with L2 agent
             state = await l2_agent.process(state)
+            
+            # Update current tier
+            state.current_tier = "L2"
             
             logger.info(
                 f"L2 complete: intent={state.intent_l2.name if state.intent_l2 else 'none'}, "
-                f"filled_slots={len(state.entities)}/{len(state.required_slots)}"
+                f"confidence={state.intent_l2.confidence if state.intent_l2 else 0.0:.2f}, "
+                f"required_slots={len(state.required_slots)}, "
+                f"filled_slots={len(state.entities)}"
             )
             
             return state
@@ -121,72 +156,62 @@ class AIReceptionistWorkflow:
     
     async def l3_execution_node(self, state: WorkflowState) -> WorkflowState:
         """
-        L3 Node: Action execution and confirmation generation.
+        L3 Node: Execute domain-specific action.
         
         Args:
-            state: Current workflow state with L2 refinement
+            state: Current workflow state
         
         Returns:
-            Updated state with L3 results
+            Updated state with L3 execution result
         """
         logger.info("Executing L3 execution node")
         
         try:
-            # Get refined intent from L2
-            if not state.intent_l2 or not state.intent_l2.name:
-                logger.error("No L2 intent found for L3 routing")
-                state.error_message = "Missing refined intent for action execution"
-                state.requires_human_escalation = True
-                state.escalation_reason = "missing_intent"
-                return state
+            # Select appropriate L3 agent using routing service
+            l3_agent_type = self.routing_service.select_l3_agent(state)
+            state.selected_l3_agent = l3_agent_type
             
-            intent_name = state.intent_l2.name
-            logger.info(f"Routing to L3 agent for intent: {intent_name}")
+            logger.info(f"Selected L3 agent: {l3_agent_type}")
             
-            # Get appropriate L3 agent based on refined intent
-            try:
-                l3_agent = self.l3_factory.create_agent(intent_name)
-                logger.info(f"Selected L3 agent: {l3_agent.agent_name} (domain: {l3_agent.domain})")
-            except Exception as e:
-                logger.error(f"Failed to create L3 agent for intent '{intent_name}': {e}")
-                state.error_message = f"Unable to process request: {str(e)}"
-                state.requires_human_escalation = True
-                state.escalation_reason = "agent_creation_failed"
-                return state
+            # Get L3 agent from factory
+            l3_agent = self.l3_factory.get_agent(l3_agent_type)
             
-            # Execute L3 agent
+            # Process with L3 agent
             state = await l3_agent.process(state)
             
-            # Log L3 results
-            if state.action_success:
-                logger.info(
-                    f"L3 complete: action={state.action_result.get('action_name', 'unknown')} "
-                    f"success={state.action_success}"
-                )
-            else:
-                logger.warning(
-                    f"L3 action failed: {state.action_result.get('error_message', 'Unknown error')}"
-                )
+            # Update current tier
+            state.current_tier = "L3"
             
             # Mark as processed
             state.processed = True
-            state.current_tier = "L3"
+            
+            logger.info(
+                f"L3 complete: action={state.action_result.get('action_name', 'unknown') if state.action_result else 'none'}, "
+                f"status={state.action_result.get('action_status', 'unknown') if state.action_result else 'none'}"
+            )
             
             return state
         
         except Exception as e:
-            logger.error(f"L3 node error: {e}", exc_info=True)
+            logger.error(f"L3 node error: {e}")
             state.error_message = f"L3 execution failed: {str(e)}"
             state.requires_human_escalation = True
             state.escalation_reason = "technical_error"
+            
+            # Generate fallback response
+            state.response_text = (
+                "I apologize, but I encountered an issue processing your request. "
+                "Let me connect you with a team member who can help."
+            )
+            
             return state
     
     async def clarification_node(self, state: WorkflowState) -> WorkflowState:
         """
-        Clarification Node: Ask user for missing information.
+        Clarification Node: Ask user for missing information using ClarificationHandler.
         
         Args:
-            state: Current workflow state needing clarification
+            state: Current workflow state
         
         Returns:
             Updated state with clarification question
@@ -194,146 +219,125 @@ class AIReceptionistWorkflow:
         logger.info("Executing clarification node")
         
         try:
-            # Generate clarification response
-            if state.clarification_question:
-                state.response_text = state.clarification_question
-            else:
-                # Fallback clarification
-                missing = ", ".join([s.replace("_", " ") for s in state.missing_slots])
-                state.response_text = f"I need a bit more information. Could you provide: {missing}?"
+            # Use the Phase 6 ClarificationHandler
+            state = await self.clarification_handler(state)
             
-            # Increment clarification count
-            state.clarification_count += 1
-            state.awaiting_clarification = True
-            
-            logger.info(f"Clarification requested (attempt {state.clarification_count})")
+            logger.info(
+                f"Clarification handled (attempt {state.clarification_count}/{state.max_clarifications}): "
+                f"awaiting={state.awaiting_clarification}, "
+                f"missing_slots={state.missing_slots}"
+            )
             
             return state
         
         except Exception as e:
             logger.error(f"Clarification node error: {e}")
             state.error_message = f"Clarification generation failed: {str(e)}"
+            state.requires_human_escalation = True
+            state.escalation_reason = "clarification_handler_error"
             return state
     
     async def human_escalation_node(self, state: WorkflowState) -> WorkflowState:
         """
-        Human Escalation Node: Transfer to human operator.
+        Human Escalation Node: Transfer to human operator using HumanEscalationNode.
         
         Args:
-            state: Current workflow state requiring escalation
+            state: Current workflow state
         
         Returns:
-            Updated state with escalation message
+            Updated state with escalation ticket and message
         """
         logger.info(f"Executing human escalation node: reason={state.escalation_reason}")
         
         try:
-            # Generate ticket ID
-            import uuid
-            ticket_id = f"TKT-{uuid.uuid4().hex[:8].upper()}"
-            state.ticket_id = ticket_id
+            # Ensure escalation reason is set
+            if not state.escalation_reason:
+                if state.error_message:
+                    state.escalation_reason = "technical_error"
+                elif state.clarification_count >= state.max_clarifications:
+                    state.escalation_reason = f"Unable to collect required information after {state.clarification_count} attempts"
+                else:
+                    state.escalation_reason = "Low confidence in automated response"
             
-            # Create escalation message
-            state.response_text = (
-                f"I'd like to connect you with a specialist who can better assist you. "
-                f"Your reference number is {ticket_id}. "
-                f"Please hold while I transfer your call."
+            # Set escalation priority if not set
+            if not state.escalation_priority:
+                if "urgent" in state.escalation_reason.lower() or "emergency" in (state.speech_text or "").lower():
+                    state.escalation_priority = "urgent"
+                elif state.clarification_count >= state.max_clarifications:
+                    state.escalation_priority = "high"
+                else:
+                    state.escalation_priority = "medium"
+            
+            # ✅ Call the Phase 6 HumanEscalationNode instance (not the method)
+            state = await self.human_escalation_node_handler(state)
+            
+            logger.info(
+                f"Escalation complete: ticket_id={state.ticket_id}, "
+                f"priority={state.escalation_priority}"
             )
-            
-            # TODO: Actually create ticket in database
-            # await self.db_service.create_escalation_ticket(state)
-            
-            state.processed = True
-            state.current_tier = "HUMAN"
-            
-            logger.info(f"Escalation ticket created: {ticket_id}")
             
             return state
         
         except Exception as e:
-            logger.error(f"Escalation node error: {e}")
+            logger.error(f"Human escalation node error: {e}")
+            
+            # Fallback escalation if Phase 6 node fails
+            from datetime import datetime, timezone
+            state.ticket_id = f"FALLBACK-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
             state.error_message = f"Escalation failed: {str(e)}"
-            state.response_text = "I apologize for the difficulty. Please call our main line for immediate assistance."
+            state.response_text = (
+                "I apologize, but I'm experiencing technical difficulties. "
+                f"Your reference number is {state.ticket_id}. "
+                "Please call our main line for immediate assistance."
+            )
+            state.processed = True
+            state.requires_human_escalation = True
+            
             return state
     
-    # ============ Routing Condition Functions ============
+    # ============ Routing Condition Methods ============
     
     def should_escalate_after_l1(self, state: WorkflowState) -> Literal["l2", "escalate"]:
         """
-        Decide if we should escalate after L1 or continue to L2.
+        Determine routing after L1 using routing service.
         
         Args:
-            state: State after L1 processing
+            state: Current workflow state
         
         Returns:
-            "l2" to continue, "escalate" to escalate to human
+            "l2" or "escalate"
         """
-        if state.requires_human_escalation:
-            logger.info("L1 routing: escalating to human")
-            return "escalate"
-        
-        logger.info("L1 routing: proceeding to L2")
-        return "l2"
+        decision = self.routing_service.route_from_l1(state)
+        logger.info(f"L1 routing decision: {decision}")
+        return decision
     
     def route_after_l2(self, state: WorkflowState) -> Literal["clarify", "l3", "escalate"]:
         """
-        Decide where to route after L2 processing.
+        Determine routing after L2 using routing service.
         
         Args:
-            state: State after L2 processing
+            state: Current workflow state
         
         Returns:
-            "clarify" for missing info, "l3" to execute, "escalate" for human
+            "clarify", "l3", or "escalate"
         """
-        # Check for escalation first
-        if state.requires_human_escalation:
-            logger.info("L2 routing: escalating to human")
-            return "escalate"
-        
-        # Check if clarification needed
-        if state.awaiting_clarification:
-            # Check max clarifications
-            if state.clarification_count >= state.max_clarifications:
-                logger.info("L2 routing: max clarifications reached, escalating")
-                state.requires_human_escalation = True
-                state.escalation_reason = "max_clarifications_reached"
-                return "escalate"
-            
-            logger.info(f"L2 routing: requesting clarification (attempt {state.clarification_count + 1})")
-            return "clarify"
-        
-        # Check if all required slots filled
-        if len(state.missing_slots) > 0:
-            logger.info(f"L2 routing: missing {len(state.missing_slots)} slots, requesting clarification")
-            state.awaiting_clarification = True
-            return "clarify"
-        
-        # All good, proceed to L3
-        logger.info("L2 routing: proceeding to L3")
-        return "l3"
+        decision = self.routing_service.route_from_l2(state)
+        logger.info(f"L2 routing decision: {decision}")
+        return decision
     
     def route_after_clarification(self, state: WorkflowState) -> Literal["l2", "escalate"]:
         """
-        Decide where to route after clarification response.
+        Determine routing after clarification using routing service.
         
         Args:
-            state: State after user provided clarification
+            state: Current workflow state
         
         Returns:
-            "l2" to reprocess with new info, "escalate" if max attempts reached
+            "l2" or "escalate"
         """
-        # In a real implementation, this would process the user's clarification response
-        # and update the state before routing back to L2
-        
-        if state.clarification_count >= state.max_clarifications:
-            logger.info("Clarification routing: max attempts reached, escalating")
-            state.requires_human_escalation = True
-            state.escalation_reason = "max_clarifications_reached"
-            return "escalate"
-        
-        logger.info("Clarification routing: returning to L2 with new info")
-        state.awaiting_clarification = False
-        return "l2"
+        decision = self.routing_service.route_from_clarification(state)
+        logger.info(f"Clarification routing decision: {decision}")
+        return decision
     
     # ============ Workflow Builder ============
     
@@ -395,7 +399,7 @@ class AIReceptionistWorkflow:
         # After human escalation: done
         workflow.add_edge("human_escalation", END)
         
-        logger.info("Workflow graph built with 3-tier routing")
+        logger.info("Workflow graph built with RoutingService integration")
         
         return workflow.compile()
     
@@ -438,13 +442,18 @@ class AIReceptionistWorkflow:
             
             # Calculate total processing time
             if result.processing_start_time:
-                elapsed = (datetime.utcnow() - result.processing_start_time).total_seconds() * 1000
+                from datetime import datetime, UTC
+                elapsed = (datetime.now(UTC) - result.processing_start_time).total_seconds() * 1000
                 result.total_processing_time_ms = elapsed
+            
+            # Get routing summary
+            routing_summary = self.routing_service.get_routing_summary(result)
             
             logger.info(
                 f"Call processing complete: "
                 f"success={result.processed}, "
                 f"tier={result.current_tier}, "
+                f"path={routing_summary['routing_path']}, "
                 f"time={result.total_processing_time_ms:.0f}ms"
             )
             
@@ -454,4 +463,6 @@ class AIReceptionistWorkflow:
             logger.error(f"Workflow execution failed: {e}")
             initial_state.error_message = f"Workflow failed: {str(e)}"
             initial_state.response_text = "I apologize, but I'm experiencing technical difficulties. Please try again later."
+            initial_state.requires_human_escalation = True
+            initial_state.escalation_reason = "technical_error"
             return initial_state

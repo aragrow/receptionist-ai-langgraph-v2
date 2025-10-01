@@ -10,7 +10,7 @@ from datetime import datetime
 
 # ============ CONFIGURATION ============
 # Add directories to process here - easily scalable
-DIRECTORIES_TO_PROCESS = ['src', 'config']
+DIRECTORIES_TO_PROCESS = ['src', 'config','tests', 'docs','analytics']
 
 # Optional: Add specific files from root
 ROOT_FILES_TO_INCLUDE = ['main.py']
@@ -43,6 +43,7 @@ def get_file_extension_info(filepath):
         '.rs': 'Rust',
         '.rb': 'Ruby',
         '.php': 'PHP',
+        '.html': 'HTML',
     }
     return descriptions.get(ext, 'Unknown')
 

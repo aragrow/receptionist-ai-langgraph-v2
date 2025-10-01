@@ -1,0 +1,273 @@
+Phase 5: Routing Logic - Implementation Complete ✅
+📋 Overview
+Phase 5 successfully implements intelligent routing between L1, L2, and L3 agent tiers with confidence-based decision making, clarification loops, and human escalation paths.
+
+🎯 What Was Built
+5.1 ✅ Routing Service (src/services/routing_service.py)
+Purpose: Central routing intelligence for agent selection and flow control
+
+Key Methods:
+
+route_from_l1(state) → Returns "l2" or "escalate"
+route_from_l2(state) → Returns "clarify", "l3", or "escalate"
+route_from_clarification(state) → Returns "l2" or "escalate"
+select_l2_agent(state) → Returns L2 agent name based on caller_type
+select_l3_agent(state) → Returns L3 agent name based on intent_l2
+should_clarify(state) → Boolean decision helper
+should_escalate_to_human(state) → Boolean decision helper
+get_routing_summary(state) → Returns routing analytics
+Routing Logic:
+
+After L1:
+
+IF confidence < 0.40 → escalate
+IF error or explicit flag → escalate
+ELSE → L2
+After L2:
+
+IF confidence < 0.40 → escalate
+IF clarification_count >= 2 → escalate
+IF missing_slots OR confidence 0.40-0.74 → clarify
+IF confidence >= 0.75 AND slots_complete → L3
+After Clarification:
+
+IF clarification_count >= 2 → escalate
+ELSE → L2 (with new info)
+5.2 ✅ Routing Conditions (src/workflow/routing_conditions.py)
+Purpose: Conditional functions for LangGraph workflow edges
+
+Key Functions:
+
+check_l1_confidence(state) → "l2" | "escalate"
+check_l2_confidence(state) → "clarify" | "l3" | "escalate"
+check_slots_complete(state) → bool
+check_max_clarifications(state) → "l2" | "escalate"
+check_escalation_needed(state) → bool
+Helper Functions:
+
+get_confidence_level(confidence) → "high" | "medium" | "low"
+should_ask_clarification(state) → bool
+format_routing_decision(state) → dict (for logging)
+5.3 ✅ Updated Workflow Graph (src/workflow/ai_receptionist_workflow.py)
+Changes Made:
+
+Integrated RoutingService into workflow initialization
+Updated all node methods to use routing service
+Improved routing condition methods to delegate to routing service
+Enhanced logging with routing decisions
+Added routing summary to final output
+New Workflow Flow:
+
+START
+  ↓
+L1 Classification
+  ├─→ (confidence < 0.40) → Human Escalation → END
+  └─→ (confidence ≥ 0.40) → L2 Processing
+                               ├─→ (low conf) → Human Escalation → END
+                               ├─→ (missing slots/med conf) → Clarification
+                               │                                  ├─→ (< max) → L2 (loop)
+                               │                                  └─→ (≥ max) → Human Escalation → END
+                               └─→ (high conf + complete) → L3 Execution → END
+Key Improvements:
+
+✅ Routing decisions delegated to RoutingService
+✅ All routing logic centralized and testable
+✅ Routing history tracked at every step
+✅ Agent selection automated (L2 by caller_type, L3 by intent)
+✅ Graceful error handling with escalation
+📊 Routing Decision Matrix
+Scenario	L1 →	L2 →	Clarification →
+High Confidence + Complete Slots	L2	L3	-
+Medium Confidence	L2	Clarify	L2
+Low Confidence	Escalate	Escalate	Escalate (if max)
+Missing Slots (attempt 1)	-	Clarify	L2
+Missing Slots (attempt 2)	-	Clarify	L2
+Missing Slots (attempt 3)	-	Escalate	Escalate
+Error Occurred	Escalate	Escalate	Escalate
+Explicit Escalation Flag	Escalate	Escalate	Escalate
+🔧 Configuration Used
+From config/routing_config.py:
+
+Confidence Thresholds:
+
+python
+CONFIDENCE_THRESHOLDS = {
+    "HIGH": 0.75,    # Auto-route
+    "MEDIUM": 0.40,  # Clarify
+    "LOW": 0.40      # Escalate threshold
+}
+Max Clarifications:
+
+python
+MAX_CLARIFICATIONS = 2
+Caller Type → L2 Agent Mapping:
+
+python
+CALLER_TYPE_TO_L2_MAP = {
+    "client": "client",
+    "prospect": "prospect",
+    "partner": "partner",
+    "vendor": "partner",
+    "lead": "prospect",
+    "unknown": "general"
+}
+Intent → L3 Agent Mapping:
+
+python
+INTENT_TO_L3_MAP = {
+    "book_service": "sales",
+    "schedule_cleaning": "sales",
+    "get_quote": "sales",
+    "technical_issue": "support",
+    "service_problem": "support",
+    "complaint": "support",
+    "invoice_question": "billing",
+    "payment_issue": "billing",
+    "vendor_checkin": "partner",
+    # ... etc
+}
+📁 Files Created/Modified
+✅ New Files Created:
+src/services/routing_service.py (350 lines)
+Core routing intelligence
+Agent selection logic
+Confidence evaluation
+Routing history tracking
+src/workflow/routing_conditions.py (280 lines)
+LangGraph conditional edge functions
+Helper decision functions
+Logging utilities
+✅ Files Modified:
+src/workflow/ai_receptionist_workflow.py
+Added RoutingService integration
+Updated all routing condition methods
+Enhanced logging with routing decisions
+Added routing summary to output
+🧪 Testing Recommendations
+Unit Tests Needed:
+Test routing_service.py:
+
+python
+def test_route_from_l1_high_confidence():
+    # confidence = 0.85 → should route to L2
+    
+def test_route_from_l1_low_confidence():
+    # confidence = 0.35 → should escalate
+    
+def test_select_l2_agent_for_client():
+    # caller_type = "client" → "client" L2 agent
+    
+def test_select_l3_agent_for_booking():
+    # intent = "book_service" → "sales" L3 agent
+    
+def test_should_clarify_missing_slots():
+    # required_slots not filled → True
+    
+def test_should_escalate_max_clarifications():
+    # clarification_count >= 2 → True
+Test routing_conditions.py:
+
+python
+def test_check_l1_confidence_sufficient():
+    # confidence >= 0.40 → "l2"
+    
+def test_check_l2_confidence_complete():
+    # confidence >= 0.75, slots complete → "l3"
+    
+def test_check_max_clarifications_exceeded():
+    # count >= 2 → "escalate"
+Integration Tests:
+Full Routing Flows:
+
+python
+async def test_happy_path_l1_l2_l3():
+    # High confidence, complete slots → L1→L2→L3
+    
+async def test_clarification_loop():
+    # Missing slots → L1→L2→Clarify→L2→L3
+    
+async def test_escalation_low_confidence():
+    # Low confidence → L1→Escalate
+    
+async def test_max_clarifications_exceeded():
+    # 2 clarifications → L1→L2→Clarify→L2→Clarify→Escalate
+📈 Metrics to Track
+The routing service enables tracking:
+
+Routing Paths:
+Most common path (L1→L2→L3 vs L1→L2→Clarify→L2→L3)
+Escalation rate by tier
+Average routing steps per conversation
+Agent Selection:
+L2 agent distribution (client vs prospect vs partner)
+L3 agent distribution (sales vs support vs billing)
+Agent switching frequency
+Confidence Metrics:
+Average L1 confidence by intent category
+Average L2 confidence by refined intent
+Confidence improvement after clarification
+Clarification Metrics:
+Clarification rate (% of conversations)
+Average clarifications per conversation
+Success rate after clarification
+Escalation Metrics:
+Escalation rate by reason
+Escalation rate by tier
+Escalation rate by caller type
+🎉 Phase 5 Success Criteria - ALL MET ✅
+✅ 5.1 Routing Service created with all decision logic
+✅ 5.2 Routing condition functions created for LangGraph
+✅ 5.3 Workflow updated to use routing service
+✅ Confidence thresholds implemented (HIGH: 0.75, MEDIUM/LOW: 0.40)
+✅ Agent selection automated (L2 by caller_type, L3 by intent)
+✅ Clarification loop logic implemented (max 2 attempts)
+✅ Human escalation paths defined
+✅ Routing history tracking enabled
+✅ Comprehensive logging added
+✅ All routing decisions centralized and testable
+🚀 Next Steps
+Immediate:
+Test the routing logic with sample calls
+Verify routing decisions match expected behavior
+Check logging output for routing history
+Phase 6 (Clarification & Escalation):
+Enhance clarification question generation
+Implement ticket system for human escalation
+Add slot filling from user clarification responses
+Create escalation notification system
+Phase 7 (Session Management):
+Add session persistence with routing state
+Track conversation history across turns
+Enable multi-turn clarification conversations
+💡 Usage Example
+python
+from src.workflow.ai_receptionist_workflow import AIReceptionistWorkflow
+
+# Initialize workflow
+workflow = AIReceptionistWorkflow()
+await workflow.initialize()
+
+# Process a call
+result = await workflow.process_call({
+    "call_sid": "CALL123",
+    "caller_phone": "+15551234567",
+    "speech_text": "I need to schedule a cleaning for tomorrow"
+})
+
+# Check routing
+print(f"Final Tier: {result.current_tier}")
+print(f"Routing Path: {[step['from_tier'] + '→' + step['to_tier'] for step in result.routing_history]}")
+print(f"L1 Intent: {result.intent_l1.name} ({result.intent_l1.confidence:.2f})")
+print(f"L2 Intent: {result.intent_l2.name} ({result.intent_l2.confidence:.2f})")
+print(f"Selected L2: {result.selected_l2_agent}")
+print(f"Selected L3: {result.selected_l3_agent}")
+print(f"Clarifications: {result.clarification_count}")
+print(f"Escalated: {result.requires_human_escalation}")
+🎯 Key Achievements
+Intelligent Routing: Decisions based on confidence + context
+Flexible Architecture: Easy to adjust thresholds and mappings
+Comprehensive Tracking: Every routing decision logged
+Testable Logic: All routing in service layer, not workflow
+Graceful Degradation: Always provides user response, even on error
+Phase 5 Status: ✅ COMPLETE AND READY FOR TESTING
+

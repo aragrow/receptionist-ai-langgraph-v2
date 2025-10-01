@@ -1,0 +1,388 @@
+# ==================== src/services/routing_service.py ====================
+"""
+Routing Service for intelligent agent selection and flow control.
+Handles routing decisions between L1, L2, and L3 tiers.
+"""
+import logging
+from typing import Optional, Dict, Any
+from datetime import datetime, UTC
+
+from src.models.workflow_models import WorkflowState, CallerType, AgentTier
+from src.models.agent_models import RoutingDecision
+from config.routing_config import (
+    CONFIDENCE_THRESHOLDS,
+    MAX_CLARIFICATIONS,
+    CALLER_TYPE_TO_L2_MAP,
+    INTENT_TO_L3_MAP,
+    get_caller_type_value
+)
+
+logger = logging.getLogger(__name__)
+
+
+class RoutingService:
+    """
+    Service for routing decisions between agent tiers.
+    
+    Responsibilities:
+    - Determine next agent based on state and confidence
+    - Select appropriate L2 agent based on caller type
+    - Select appropriate L3 agent based on refined intent
+    - Decide when to clarify vs escalate
+    - Track routing history
+    """
+    
+    def __init__(self):
+        """Initialize routing service."""
+        self.confidence_thresholds = CONFIDENCE_THRESHOLDS
+        self.max_clarifications = MAX_CLARIFICATIONS
+        logger.info("RoutingService initialized")
+    
+    # ============ L1 Routing ============
+    
+    def route_from_l1(self, state: WorkflowState) -> str:
+        """
+        Determine routing after L1 classification.
+        
+        Args:
+            state: Current workflow state with L1 output
+        
+        Returns:
+            "l2" to continue, "escalate" for human handoff
+        """
+        logger.info("Routing from L1")
+        
+        # Check for errors
+        if state.error_message:
+            logger.warning(f"L1 error detected: {state.error_message}")
+            return "escalate"
+        
+        # Check if escalation required
+        if state.requires_human_escalation:
+            logger.info("L1 flagged for human escalation")
+            return "escalate"
+        
+        # Check confidence
+        if not state.intent_l1:
+            logger.warning("No L1 intent found, escalating")
+            return "escalate"
+        
+        confidence = state.intent_l1.confidence
+        
+        if confidence < self.confidence_thresholds["LOW"]:
+            logger.info(f"L1 confidence too low ({confidence:.2f}), escalating")
+            self._add_routing_step(
+                state=state,
+                from_tier="L1",
+                to_tier="HUMAN",
+                reason=f"confidence_too_low_{confidence:.2f}",
+                confidence=confidence
+            )
+            return "escalate"
+        
+        # Proceed to L2
+        logger.info(f"L1 routing to L2: intent={state.intent_l1.name}, confidence={confidence:.2f}")
+        self._add_routing_step(
+            state=state,
+            from_tier="L1",
+            to_tier="L2",
+            reason=f"normal_flow_intent_{state.intent_l1.name}",
+            confidence=confidence
+        )
+        
+        return "l2"
+    
+    def select_l2_agent(self, state: WorkflowState) -> Optional[str]:
+        """
+        Select appropriate L2 agent based on caller type.
+        
+        Args:
+            state: Current workflow state
+        
+        Returns:
+            L2 agent name (e.g., "client", "prospect", "partner", "general")
+        """
+        caller_type_str = get_caller_type_value(state.caller_type)
+        
+        # Use mapping from config
+        l2_agent = CALLER_TYPE_TO_L2_MAP.get(
+            caller_type_str.lower(),
+            "general"  # Default fallback
+        )
+        
+        logger.info(f"Selected L2 agent: {l2_agent} for caller_type={caller_type_str}")
+        
+        return l2_agent
+    
+    # ============ L2 Routing ============
+    
+    def route_from_l2(self, state: WorkflowState) -> str:
+        """
+        Determine routing after L2 processing.
+        
+        Args:
+            state: Current workflow state with L2 output
+        
+        Returns:
+            "clarify" to ask questions, "l3" to proceed, "escalate" for human
+        """
+        logger.info("Routing from L2")
+        
+        # Check for errors
+        if state.error_message:
+            logger.warning(f"L2 error detected: {state.error_message}")
+            return "escalate"
+        
+        # Check if escalation required
+        if state.requires_human_escalation:
+            logger.info("L2 flagged for human escalation")
+            return "escalate"
+        
+        # Check if already clarifying too much
+        if state.clarification_count >= self.max_clarifications:
+            logger.info(f"Max clarifications reached ({state.clarification_count})")
+            self._add_routing_step(
+                state=state,
+                from_tier="L2",
+                to_tier="HUMAN",
+                reason="max_clarifications_exceeded",
+                confidence=state.intent_l2.confidence if state.intent_l2 else 0.0
+            )
+            return "escalate"
+        
+        # Check if clarification needed
+        if self.should_clarify(state):
+            logger.info("L2 routing to clarification")
+            self._add_routing_step(
+                state=state,
+                from_tier="L2",
+                to_tier="CLARIFY",
+                reason=f"missing_slots_{len(state.required_slots) - len(state.entities)}",
+                confidence=state.intent_l2.confidence if state.intent_l2 else 0.0
+            )
+            return "clarify"
+        
+        # Check if ready for L3
+        if state.intent_l2 and state.intent_l2.confidence >= self.confidence_thresholds["HIGH"]:
+            logger.info(f"L2 routing to L3: intent={state.intent_l2.name}, confidence={state.intent_l2.confidence:.2f}")
+            self._add_routing_step(
+                state=state,
+                from_tier="L2",
+                to_tier="L3",
+                reason=f"slots_complete_intent_{state.intent_l2.name}",
+                confidence=state.intent_l2.confidence
+            )
+            return "l3"
+        
+        # Medium confidence - clarify
+        logger.info("L2 confidence medium, routing to clarification")
+        self._add_routing_step(
+            state=state,
+            from_tier="L2",
+            to_tier="CLARIFY",
+            reason="confidence_medium",
+            confidence=state.intent_l2.confidence if state.intent_l2 else 0.0
+        )
+        return "clarify"
+    
+    def select_l3_agent(self, state: WorkflowState) -> Optional[str]:
+        """
+        Select appropriate L3 agent based on refined intent.
+        
+        Args:
+            state: Current workflow state
+        
+        Returns:
+            L3 agent name (e.g., "sales", "support", "billing", "partner", "general")
+        """
+        if not state.intent_l2:
+            logger.warning("No L2 intent, defaulting to general L3")
+            return "general"
+        
+        intent_name = state.intent_l2.name.lower()
+        
+        # Use mapping from config
+        l3_agent = INTENT_TO_L3_MAP.get(
+            intent_name,
+            "general"  # Default fallback
+        )
+        
+        logger.info(f"Selected L3 agent: {l3_agent} for intent={intent_name}")
+        
+        return l3_agent
+    
+    # ============ Clarification Routing ============
+    
+    def route_from_clarification(self, state: WorkflowState) -> str:
+        """
+        Determine routing after clarification.
+        
+        Args:
+            state: Current workflow state after user clarification
+        
+        Returns:
+            "l2" to reprocess, "escalate" if max attempts reached
+        """
+        logger.info("Routing from clarification")
+        
+        # Check max attempts
+        if state.clarification_count >= self.max_clarifications:
+            logger.info(f"Max clarifications reached ({state.clarification_count}), escalating")
+            self._add_routing_step(
+                state=state,
+                from_tier="CLARIFY",
+                to_tier="HUMAN",
+                reason="max_clarifications_exceeded",
+                confidence=0.0
+            )
+            return "escalate"
+        
+        # Return to L2 with new information
+        logger.info(f"Returning to L2 after clarification #{state.clarification_count}")
+        self._add_routing_step(
+            state=state,
+            from_tier="CLARIFY",
+            to_tier="L2",
+            reason="clarification_provided",
+            confidence=0.0
+        )
+        
+        return "l2"
+    
+    # ============ Decision Helpers ============
+    
+    def should_clarify(self, state: WorkflowState) -> bool:
+        """
+        Determine if clarification is needed.
+        
+        Clarification needed when:
+        1. Required slots are missing
+        2. Confidence is medium (0.4-0.74)
+        3. Not already at max clarifications
+        
+        Args:
+            state: Current workflow state
+        
+        Returns:
+            True if clarification needed
+        """
+        # Check if at max clarifications
+        if state.clarification_count >= self.max_clarifications:
+            return False
+        
+        # Check for missing required slots
+        missing_slots = []
+        for slot in state.required_slots:
+            if slot not in state.entities or not state.entities[slot]:
+                missing_slots.append(slot)
+        
+        if missing_slots:
+            logger.info(f"Missing required slots: {missing_slots}")
+            return True
+        
+        # Check confidence level
+        if state.intent_l2:
+            confidence = state.intent_l2.confidence
+            if self.confidence_thresholds["MEDIUM"] <= confidence < self.confidence_thresholds["HIGH"]:
+                logger.info(f"Medium confidence ({confidence:.2f}), clarification recommended")
+                return True
+        
+        return False
+    
+    def should_escalate_to_human(self, state: WorkflowState) -> bool:
+        """
+        Determine if human escalation is needed.
+        
+        Escalation needed when:
+        1. Explicitly flagged (state.requires_human_escalation)
+        2. Confidence too low (< 0.4)
+        3. Max clarifications reached
+        4. Error occurred
+        
+        Args:
+            state: Current workflow state
+        
+        Returns:
+            True if escalation needed
+        """
+        # Explicit flag
+        if state.requires_human_escalation:
+            logger.info(f"Escalation required: {state.escalation_reason}")
+            return True
+        
+        # Error occurred
+        if state.error_message:
+            logger.info(f"Error detected: {state.error_message}")
+            return True
+        
+        # Too many clarifications
+        if state.clarification_count >= self.max_clarifications:
+            logger.info("Max clarifications exceeded")
+            return True
+        
+        # Low confidence at L1
+        if state.intent_l1 and state.intent_l1.confidence < self.confidence_thresholds["LOW"]:
+            logger.info(f"L1 confidence too low: {state.intent_l1.confidence:.2f}")
+            return True
+        
+        # Low confidence at L2
+        if state.intent_l2 and state.intent_l2.confidence < self.confidence_thresholds["LOW"]:
+            logger.info(f"L2 confidence too low: {state.intent_l2.confidence:.2f}")
+            return True
+        
+        return False
+    
+    # ============ Utilities ============
+    
+    def _add_routing_step(
+        self,
+        state: WorkflowState,
+        from_tier: str,
+        to_tier: str,
+        reason: str,
+        confidence: float
+    ):
+        """
+        Add routing step to history.
+        
+        Args:
+            state: Current workflow state
+            from_tier: Source tier (L1/L2/L3/CLARIFY)
+            to_tier: Destination tier
+            reason: Routing reason
+            confidence: Confidence score at routing time
+        """
+        routing_step = {
+            "from_tier": from_tier,
+            "to_tier": to_tier,
+            "reason": reason,
+            "confidence": confidence,
+            "timestamp": datetime.now(UTC).isoformat()
+        }
+        
+        state.routing_history.append(routing_step)
+        
+        logger.debug(f"Added routing step: {from_tier} → {to_tier} ({reason})")
+    
+    def get_routing_summary(self, state: WorkflowState) -> Dict[str, Any]:
+        """
+        Generate summary of routing decisions.
+        
+        Args:
+            state: Current workflow state
+        
+        Returns:
+            Dictionary with routing summary
+        """
+        return {
+            "total_steps": len(state.routing_history),
+            "current_tier": state.current_tier,
+            "clarification_count": state.clarification_count,
+            "escalated": state.requires_human_escalation,
+            "escalation_reason": state.escalation_reason,
+            "routing_path": [
+                f"{step['from_tier']}→{step['to_tier']}"
+                for step in state.routing_history
+            ],
+            "history": state.routing_history
+        }
