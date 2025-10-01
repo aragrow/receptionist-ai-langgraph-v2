@@ -59,9 +59,12 @@ Documented: Rich context for logging and debugging
 
 """
 
-from typing import Dict, Optional, List, Callable
+from typing import Dict, Optional, List, Callable, Any
 from enum import Enum
 from dataclasses import dataclass
+from pydantic import BaseModel, Field
+from datetime import datetime, timezone
+
 
 from src.models.agent_models import (
     RoutingDecision, 
@@ -70,6 +73,12 @@ from src.models.agent_models import (
     EscalationReason
 )
 
+class L1Output(BaseModel):
+    intent_name: str
+    confidence: float
+    reasoning: str
+    routing_decision: str  # This field is missing!
+    caller_type: Optional[str] = None
 
 # ============ Confidence Thresholds ============
 
@@ -578,3 +587,59 @@ def can_agent_handle_intent(agent_type: str, intent: str) -> bool:
     """
     capabilities = AGENT_CAPABILITIES.get(agent_type, [])
     return intent in capabilities
+
+def add_routing_step(
+    state,
+    agent: str,
+    action: str,
+    details: Optional[Dict[str, Any]] = None,
+    from_tier: Optional[str] = None,
+    to_tier: Optional[str] = None,
+    reason: Optional[str] = None,
+    confidence: Optional[float] = None,
+    **kwargs  # Accept any additional keyword arguments
+):
+    """
+    Add a routing step to the state's routing history.
+    
+    Args:
+        state: The workflow state object
+        agent: Name of the agent performing the action
+        action: Action being performed
+        details: Additional details dictionary
+        from_tier: Source tier (e.g., "L1", "L2")
+        to_tier: Destination tier (e.g., "L2", "L3")
+        reason: Reason for routing decision
+        confidence: Confidence score for the decision
+        **kwargs: Any additional parameters
+    
+    Returns:
+        Updated state object
+    """
+    if not hasattr(state, 'routing_history'):
+        state.routing_history = []
+    
+    step = {
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'agent': agent,
+        'action': action,
+        'details': details or {}
+    }
+    
+    # Add optional fields if provided
+    if from_tier:
+        step['from_tier'] = from_tier
+    if to_tier:
+        step['to_tier'] = to_tier
+    if reason:
+        step['reason'] = reason
+    if confidence is not None:
+        step['confidence'] = confidence
+    
+    # Add any additional kwargs to details
+    if kwargs:
+        step['details'].update(kwargs)
+    
+    state.routing_history.append(step)
+    
+    return state

@@ -83,7 +83,7 @@ Extensible: Easy to add new fields without breaking existing code
 
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field, validator
-from datetime import datetime
+from datetime import datetime, UTC
 from enum import Enum
 
 

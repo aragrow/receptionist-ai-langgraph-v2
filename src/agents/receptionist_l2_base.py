@@ -566,7 +566,7 @@ Respond ONLY with valid JSON, no additional text."""
         try:
             # Load clarification prompt
             clarification_prompt_template = await self.db_service.find_agent_action_prompt(
-                agent="receptionist",
+                agent="receptionist_l1",
                 action="l2_clarification",
                 level=1
             )
@@ -630,13 +630,15 @@ Respond ONLY with valid JSON, no additional text."""
         l2_output: L2Output
     ) -> WorkflowState:
         """Update workflow state with L2 output."""
+        from datetime import datetime, UTC
+        
         # Update intent L2
         state.intent_l2 = IntentL2(
             name=l2_output.intent_name,
             confidence=l2_output.confidence,
             subcategory=l2_output.intent_subcategory,
             parent_intent_l1=state.intent_l1.name if state.intent_l1 else None,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(UTC)
         )
         
         # Update entities and slots
@@ -694,7 +696,7 @@ Respond ONLY with valid JSON, no additional text."""
         """Load system prompt from database."""
         try:
             prompt_doc = await self.db_service.find_agent_action_prompt(
-                agent="receptionist",
+                agent="receptionist_l1",
                 action=f"l2_refinement_{self.caller_type}",
                 level=1
             )

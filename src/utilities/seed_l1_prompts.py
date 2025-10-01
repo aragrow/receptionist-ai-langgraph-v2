@@ -6,7 +6,7 @@ Run this script to populate the agent_action_prompts collection with L1 system p
 
 import asyncio
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Add project root to path
@@ -59,25 +59,26 @@ Always respond with this exact JSON structure, no additional text:
     "confidence": 0.0-1.0,
     "caller_type": "client|prospect|partner|unknown",
     "caller_type_confidence": 0.0-1.0,
-    "reasoning": "Brief one-sentence explanation"
+    "reasoning": "Brief one-sentence explanation",
+    "routing_decision": "sales_receptionist_l2|support_receptionist_l2|billing_receptionist_l2|inquiry_receptionist_l2"
 }
 
 Examples:
 
 Input: "I need to schedule a cleaning for next Tuesday"
-Output: {"intent_name": "scheduling", "intent_category": "scheduling", "confidence": 0.95, "caller_type": "prospect", "caller_type_confidence": 0.60, "reasoning": "User explicitly requested scheduling with specific date"}
+Output: {"intent_name": "scheduling", "intent_category": "scheduling", "confidence": 0.95, "caller_type": "prospect", "caller_type_confidence": 0.60, "reasoning": "User explicitly requested scheduling with specific date", "routing_decision": "sales_receptionist_l2"}
 
 Input: "My last cleaning was terrible, need to complain"
-Output: {"intent_name": "support", "intent_category": "support", "confidence": 0.92, "caller_type": "client", "caller_type_confidence": 0.85, "reasoning": "Complaint about service quality from existing customer"}
+Output: {"intent_name": "support", "intent_category": "support", "confidence": 0.92, "caller_type": "client", "caller_type_confidence": 0.85, "reasoning": "Complaint about service quality from existing customer", "routing_decision": "support_receptionist_l2"}
 
 Input: "How much does a cleaning cost?"
-Output: {"intent_name": "sales", "intent_category": "sales", "confidence": 0.88, "caller_type": "prospect", "caller_type_confidence": 0.75, "reasoning": "Pricing inquiry typical of new prospect"}
+Output: {"intent_name": "sales", "intent_category": "sales", "confidence": 0.88, "caller_type": "prospect", "caller_type_confidence": 0.75, "reasoning": "Pricing inquiry typical of new prospect", "routing_decision": "sales_receptionist_l2"}
 
 Input: "When did I pay my last invoice?"
-Output: {"intent_name": "billing", "intent_category": "billing", "confidence": 0.90, "caller_type": "client", "caller_type_confidence": 0.90, "reasoning": "Invoice history question from existing client"}
+Output: {"intent_name": "billing", "intent_category": "billing", "confidence": 0.90, "caller_type": "client", "caller_type_confidence": 0.90, "reasoning": "Invoice history question from existing client", "routing_decision": "billing_receptionist_l2"}
 
 Input: "Hi, can you help me?"
-Output: {"intent_name": "general", "intent_category": "general", "confidence": 0.35, "caller_type": "unknown", "caller_type_confidence": 0.30, "reasoning": "Vague request without clear intent indicators"}
+Output: {"intent_name": "general", "intent_category": "general", "confidence": 0.35, "caller_type": "unknown", "caller_type_confidence": 0.30, "reasoning": "Vague request without clear intent indicators", "routing_decision": "inquiry_receptionist_l2"}
 
 Remember: Be fast, be decisive, output valid JSON only."""
 
@@ -146,40 +147,40 @@ Be fast and decisive. Default to "general" if uncertain.""",
 
 L1_PROMPTS = [
     {
-        "agent": "receptionist",
-        "action": "l1_classification",
+        "agent": "receptionist_l1",
+        "action": "classify_intent",
         "level": 1,
         "prompt": L1_PROMPT_VARIANTS["detailed"],
         "active": True,
         "notes": "Primary L1 classification prompt with detailed guidelines",
         "version": "1.0.0",
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
     },
     {
-        "agent": "receptionist",
-        "action": "l1_classification",
+        "agent": "receptionist_l1",
+        "action": "classify_intent",
         "level": 2,
         "prompt": L1_PROMPT_VARIANTS["with_examples"],
         "active": False,
         "notes": "Extended L1 prompt with comprehensive examples (for testing/training)",
         "version": "1.1.0",
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
     },
     {
-        "agent": "receptionist",
-        "action": "l1_classification",
+        "agent": "receptionist_l1",
+        "action": "classify_intent",
         "level": 3,
         "prompt": L1_PROMPT_VARIANTS["concise"],
         "active": False,
         "notes": "Ultra-concise L1 prompt for maximum speed (experimental)",
         "version": "0.9.0",
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
     },
     {
-        "agent": "receptionist",
+        "agent": "receptionist_l1",
         "action": "l1_fallback",
         "level": 1,
         "prompt": """You are a fallback classifier when primary classification fails.
@@ -188,12 +189,12 @@ Be extremely fast and simple. Output only JSON: {"intent_name": "...", "confiden
         "active": True,
         "notes": "Fallback prompt for L1 when primary method fails",
         "version": "1.0.0",
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
     },
     {
-        "agent": "receptionist",
-        "action": "l1_clarification",
+        "agent": "receptionist_l1",
+        "action": "clarification",
         "level": 1,
         "prompt": """You need to ask ONE clarifying question because the user's intent is unclear.
 
@@ -217,8 +218,8 @@ Output JSON only: {{"question": "...", "question_type": "multiple_choice|open_en
         "active": True,
         "notes": "L1 clarification question generator",
         "version": "1.0.0",
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
     }
 ]
 
@@ -259,6 +260,7 @@ async def seed_l1_prompts():
         
         for prompt_doc in L1_PROMPTS:
             # Check if prompt already exists
+            
             existing = await db_service.db.agent_action_prompts.find_one({
                 "agent": prompt_doc["agent"],
                 "action": prompt_doc["action"],
@@ -268,8 +270,8 @@ async def seed_l1_prompts():
             if existing:
                 # Update if different
                 if existing.get("prompt") != prompt_doc["prompt"]:
-                    prompt_doc["updated_at"] = datetime.utcnow()
-                    prompt_doc["created_at"] = existing.get("created_at", datetime.utcnow())
+                    prompt_doc["updated_at"] = datetime.now(timezone.utc)
+                    prompt_doc["created_at"] = existing.get("created_at", datetime.now(timezone.utc))
                     
                     await db_service.db.agent_action_prompts.update_one(
                         {"_id": existing["_id"]},
@@ -304,9 +306,9 @@ async def seed_l1_prompts():
         
         # Show active L1 prompt
         active_l1 = await db_service.db.agent_action_prompts.find_one({
-            "agent": "receptionist",
-            "action": "l1_classification",
-            "active": True
+            "agent": "receptionist_l1",
+            "action": "classify_intent",
+ 
         })
         
         if active_l1:
@@ -383,13 +385,13 @@ async def activate_prompt(agent: str, action: str, level: int):
         # Deactivate all prompts for this agent/action
         await db_service.db.agent_action_prompts.update_many(
             {"agent": agent, "action": action},
-            {"$set": {"active": False, "updated_at": datetime.utcnow()}}
+            {"$set": {"active": False, "updated_at": datetime.now(timezone.utc)}}
         )
         
         # Activate the specified prompt
         result = await db_service.db.agent_action_prompts.update_one(
             {"agent": agent, "action": action, "level": level},
-            {"$set": {"active": True, "updated_at": datetime.utcnow()}}
+            {"$set": {"active": True, "updated_at": datetime.now(timezone.utc)}}
         )
         
         if result.modified_count > 0:

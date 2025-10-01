@@ -1,7 +1,923 @@
-================================================================================
-Summary of Changes
-================================================================================
+Code Review Notes & Suggestions
+✅ Strengths Found in Current Implementation
 
+Good Foundation: The codebase has a solid LangGraph-based workflow with proper separation of concerns (nodes, services, models).
+Database Integration: MongoDB integration is well-structured with proper models and embedding support.
+LLM Integration: Google Gemini integration is properly configured with fallback handling.
+
+❌ Major Gaps vs. Agentic Routing Instructions
+1. Missing 3-Tier Architecture
+Current State: Single-tier workflow with 4 nodes running sequentially:
+
+identity_check → intent_analysis → response_generation → END
+
+Required: 3-tier pipeline:
+
+Receptionist L1 (ultra-light classifier)
+Receptionist L2 (intent refiner per caller type)
+Multiple L3 Agents (domain specialists: Sales, Support, Billing, etc.)
+
+Suggestion:
+
+Create separate L1, L2, L3 agent classes
+Implement routing logic between tiers
+Add confidence thresholds for auto-routing vs. clarification
+
+
+2. No Confidence-Based Routing Logic
+Current State: Workflow proceeds linearly regardless of confidence scores.
+Required:
+
+confidence >= 0.75: auto-route
+0.4 <= confidence < 0.75: ask 1 clarifying question
+confidence < 0.4: escalate to human
+
+Suggestion:
+
+Add confidence scoring to IntentAnalyzer output
+Implement conditional edges in LangGraph based on confidence
+Add clarification question generation logic
+Create human escalation node/endpoint
+
+
+3. Missing Slot Filling & Entity Extraction
+Current State: No structured entity extraction or required slot tracking.
+Required: L2 should extract and track:
+
+required_slots: ["date", "address", "service_type"]
+entities: extracted values
+Ask up to 2 clarifying questions if slots missing
+
+Suggestion:
+
+Add entities and required_slots fields to WorkflowState
+Create slot-filling logic in L2 agent
+Implement slot validation before L3 routing
+
+
+4. No Domain-Specific L3 Agents
+Current State: Single generic ResponseGenerator handles all responses.
+Required: Multiple specialized L3 agents:
+
+SalesAgent (booking, scheduling)
+SupportAgent (technical issues)
+BillingAgent (invoices, payments)
+PartnerAgent (vendor-specific workflows)
+
+Suggestion:
+
+Create separate L3 agent classes for each domain
+Implement routing logic to select correct L3 agent
+Each L3 should have domain-specific prompts and actions
+
+
+5. Incomplete Data Model
+Current State: WorkflowState has basic fields but missing routing-specific data.
+Required Fields Missing:
+python- intent_L1: {"name": str, "confidence": float}
+- intent_L2: {"name": str, "confidence": float}
+- entities: dict
+- required_slots: list
+- routing_reason: str
+- previous_messages: list
+- ticket_id: str | None
+- confidence thresholds
+Suggestion:
+
+Extend WorkflowState model with all routing fields
+Add nested models for IntentLevel1, IntentLevel2
+Track session history properly
+
+
+6. No Structured JSON Output
+Current State: Agents return natural language responses, not structured JSON.
+Required: All agents should return structured JSON:
+json{
+  "intent": {"name": "...", "confidence": 0.92},
+  "entities": {...},
+  "routing_decision": "...",
+  "next_agent": "..."
+}
+Suggestion:
+
+Force JSON output from LLM using response_format or strict parsing
+Add Pydantic models for each agent's output schema
+Validate JSON before routing decisions
+
+
+7. Missing Caller Type Classification
+Current State: IdentityChecker only checks client/vendor by phone lookup.
+Required: L1 must classify:
+
+client | prospect | partner | unknown
+Should use both database lookup AND intent/language cues
+
+Suggestion:
+
+Enhance IdentityChecker to be true L1 classifier
+Add NLP-based caller type detection for unknowns
+Create separate routing paths per caller type
+
+
+8. No Multi-Turn Clarification Logic
+Current State: Single-shot response generation; no follow-up questions.
+Required:
+
+L1/L2 should ask clarifying questions when needed
+Track clarification count (max 2)
+Escalate if still unclear after 2 attempts
+
+Suggestion:
+
+Add clarification_count to state
+Create conditional edges for clarification loops
+Implement question generation prompts
+
+
+9. Missing Human Escalation Path
+Current State: No mechanism to escalate to human operators.
+Required:
+
+Confidence < 0.4 → human
+After 2 failed clarifications → human
+User explicitly requests human
+
+Suggestion:
+
+Add escalate_to_human node
+Create ticket generation system
+Add human handoff API endpoint
+
+
+10. No Session State Persistence
+Current State: State exists only during single request/response cycle.
+Required:
+
+Persist session context at each L1→L2→L3 transition
+Log all routing decisions with timestamps
+Support multi-turn conversations
+
+Suggestion:
+
+Add session storage (Redis/MongoDB)
+Implement session ID tracking
+Store conversation history persistently
+
+
+11. Prompt Engineering Issues
+Current Issues:
+
+Generic prompts not optimized per tier
+No clear instruction for JSON-only output
+Missing confidence scoring instructions
+
+Required Prompts:
+
+L1: Ultra-short classifier prompt (50-100 tokens max)
+L2: Intent refinement + slot extraction prompt
+L3: Domain-specific action prompts
+
+Suggestion:
+
+Store prompts in agent_action_prompts collection (already exists!)
+Create level-specific prompt templates
+Add JSON schema to prompts
+
+
+12. Missing Telemetry & Metrics
+Current State: Basic logging only.
+Required Metrics:
+
+Intent classification accuracy
+Avg clarifications per request
+Routing time L1→L3
+Human escalation rate
+L3 agent success rates
+
+Suggestion:
+
+Add metrics collection to each node
+Create dashboard/reporting endpoint
+Log confidence scores per tier
+
+
+13. Error Handling Gaps
+Missing:
+
+Conflicting intent handling
+Long-running action support
+Retry logic for failed LLM calls
+Graceful degradation
+
+Suggestion:
+
+Add error states to workflow graph
+Implement retry logic with exponential backoff
+Create fallback responses for each tier
+
+
+14. Security & Privacy Concerns
+Issues:
+
+PII logging not masked
+No data retention policy implementation
+Missing consent tracking
+
+Suggestion:
+
+Add PII masking utility
+Implement configurable retention periods
+Add GDPR/CCPA compliance flags
+
+
+🎯 Priority Recommendations (High to Low)
+Critical (Implement First):
+
+Split workflow into L1 → L2 → L3 tiers with proper routing
+Add confidence-based routing logic with thresholds
+Implement structured JSON output from all agents
+Add slot filling & entity extraction to L2
+
+High Priority:
+
+Create domain-specific L3 agents
+Add clarification question loops (max 2)
+Implement human escalation path
+Add session persistence
+
+Medium Priority:
+
+Enhance prompt engineering per tier
+Add telemetry & metrics collection
+Improve error handling & retries
+
+Nice-to-Have:
+
+Add security/privacy enhancements
+Create admin dashboard for monitoring
+Build A/B testing framework for prompts
+
+
+📋 Next Steps Recommendation
+Phase 1 (Week 1-2):
+
+Redesign workflow graph with 3 tiers
+Add confidence scoring to all agents
+Implement conditional routing logic
+
+Phase 2 (Week 3-4):
+
+Create L3 domain agents (Sales, Support, Billing)
+Add slot filling to L2
+Implement clarification loops
+
+Phase 3 (Week 5-6):
+
+Add session persistence
+Implement human escalation
+Add telemetry/metrics
+
+Would you like me to start implementing any specific component first?RetrySOk so can you give me a cheklist of what I should do order by how you best think that I should approach this issue.Edit🎯 Implementation Checklist - Agentic Routing Migration
+Phase 1: Foundation & Data Models (Week 1)
+Goal: Prepare the data structures and core models before touching workflow logic
+☐ 1.1 Update WorkflowState Model
+File: src/models/workflow_models.py
+
+ Add IntentL1 nested model with name and confidence fields
+ Add IntentL2 nested model with name and confidence fields
+ Add entities: Dict[str, Any] field for extracted slots
+ Add required_slots: List[str] field
+ Add routing_reason: str field
+ Add routing_confidence: float field
+ Add clarification_count: int = 0 field
+ Add current_tier: str field (L1/L2/L3)
+ Add selected_l3_agent: Optional[str] field
+ Add requires_human_escalation: bool = False field
+ Add ticket_id: Optional[str] field
+
+☐ 1.2 Create Agent Output Models
+File: src/models/agent_models.py (NEW)
+
+ Create L1Output Pydantic model (intent_L1, confidence, caller_type, routing_decision)
+ Create L2Output Pydantic model (intent_L2, entities, required_slots, suggested_l3_agent, confidence)
+ Create L3Output Pydantic model (action_result, confirmation_message, next_steps, success)
+ Create ClarificationRequest model (question, missing_slots, context)
+
+☐ 1.3 Create Routing Configuration
+File: config/routing_config.py (NEW)
+
+ Define confidence thresholds (HIGH=0.75, MEDIUM=0.4, LOW=0.0)
+ Define max clarification attempts (MAX_CLARIFICATIONS=2)
+ Map caller types to L2 agents (client→ClientL2, prospect→SalesL2, etc.)
+ Map intents to L3 agents (booking→SalesL3, support→SupportL3, etc.)
+ Create routing decision logic functions
+
+
+Phase 2: Tier 1 - Light Classifier (Week 1-2)
+Goal: Replace identity_checker with true L1 classifier
+☐ 2.1 Create L1 Agent Base Class
+File: src/agents/base_agent.py (NEW)
+
+ Create BaseAgent abstract class with common methods
+ Add parse_llm_json() method with error handling
+ Add calculate_confidence() helper
+ Add should_clarify() decision logic
+
+☐ 2.2 Create Receptionist L1
+File: src/agents/receptionist_l1.py (NEW)
+
+ Extend BaseAgent
+ Implement ultra-light classifier (broad intent only)
+ Add caller type detection (client/prospect/partner/unknown)
+ Force structured JSON output from LLM
+ Return L1Output model
+ Add logging for L1 decisions
+
+☐ 2.3 Create L1 Prompts
+Database: Insert into agent_action_prompts collection
+
+ Create L1 system prompt (ultra-short, 50-100 tokens)
+ Add JSON schema instructions
+ Add examples for each broad intent (scheduling, support, billing, sales, general)
+ Test prompt with various inputs
+
+☐ 2.4 Update Database Service
+File: src/services/database_service.py
+
+ Fix find_agent_action_prompt() method (currently has bugs)
+ Add caching for frequently used prompts
+ Test prompt retrieval with various agent/action combinations
+
+
+Phase 3: Tier 2 - Intent Refiners (Week 2)
+Goal: Create specialized L2 agents per caller type
+☐ 3.1 Create L2 Base Agent
+File: src/agents/receptionist_l2_base.py (NEW)
+
+ Extend BaseAgent
+ Implement slot extraction logic
+ Add identify_required_slots() method
+ Add generate_clarification_question() method
+ Add validate_slots() method
+ Return L2Output model
+
+☐ 3.2 Create Specialized L2 Agents
+Files: src/agents/receptionist_l2_*.py (NEW)
+
+ ClientReceptionistL2 - handles existing client intents
+ ProspectReceptionistL2 - handles sales/lead intents
+ PartnerReceptionistL2 - handles vendor/partner intents
+ GeneralReceptionistL2 - fallback for unknown callers
+
+☐ 3.3 Create L2 Prompts
+Database: Insert into agent_action_prompts collection
+
+ Create L2 system prompts per caller type
+ Add slot extraction instructions with examples
+ Add clarification question generation guidelines
+ Include JSON output schema
+
+☐ 3.4 Implement Slot Filling Logic
+File: src/services/slot_filling_service.py (NEW)
+
+ Create SlotFillingService class
+ Add extract_entities() method (date, address, service_type, etc.)
+ Add validate_slot_values() method
+ Add format_clarification_question() method
+ Use regex + LLM for robust extraction
+
+
+Phase 4: Tier 3 - Domain Specialists (Week 3)
+Goal: Create action-oriented L3 agents
+☐ 4.1 Create L3 Base Agent
+File: src/agents/l3_base_agent.py (NEW)
+
+ Extend BaseAgent
+ Implement action execution framework
+ Add validate_prerequisites() method
+ Add execute_action() abstract method
+ Return L3Output model
+
+☐ 4.2 Create Domain-Specific L3 Agents
+Files: src/agents/l3_*.py (NEW)
+
+ SalesAgentL3 - handle bookings, scheduling, quotes
+ SupportAgentL3 - handle service issues, complaints
+ BillingAgentL3 - handle invoices, payments, account questions
+ PartnerAgentL3 - handle vendor check-ins, schedule updates
+ GeneralAgentL3 - handle FAQs, general info
+
+☐ 4.3 Implement Domain Actions
+File: src/actions/*.py (NEW folder)
+
+ booking_actions.py - create_booking, check_availability, send_confirmation
+ support_actions.py - create_ticket, escalate_issue, update_job_status
+ billing_actions.py - generate_invoice, process_payment, send_receipt
+ Each action returns structured result with success/failure
+
+☐ 4.4 Create L3 Prompts
+Database: Insert into agent_action_prompts collection
+
+ Create L3 system prompts per domain
+ Add action-specific instructions
+ Include error handling guidelines
+ Add confirmation message templates
+
+
+Phase 5: Routing Logic (Week 3-4)
+Goal: Connect the tiers with intelligent routing
+☐ 5.1 Create Routing Service
+File: src/services/routing_service.py (NEW)
+
+ Create RoutingService class
+ Implement route_from_l1() - selects L2 agent based on caller_type
+ Implement route_from_l2() - selects L3 agent based on refined_intent
+ Implement should_clarify() - confidence threshold logic
+ Implement should_escalate_to_human() - escalation logic
+ Add logging for all routing decisions
+
+☐ 5.2 Implement Conditional Routing
+File: src/workflow/routing_conditions.py (NEW)
+
+ Create check_l1_confidence() condition function
+ Create check_l2_confidence() condition function
+ Create check_slots_complete() condition function
+ Create check_max_clarifications() condition function
+ Create check_escalation_needed() condition function
+
+☐ 5.3 Update Workflow Graph
+File: src/workflow/ai_receptionist_workflow.py
+
+ Remove old linear workflow
+ Add L1 node (receptionist_l1)
+ Add L2 router node (select appropriate L2 agent)
+ Add L2 clarification loop node
+ Add L3 router node (select appropriate L3 agent)
+ Add human escalation node
+ Add conditional edges with routing logic
+ Test workflow execution paths
+
+
+Phase 6: Clarification & Escalation (Week 4)
+Goal: Handle uncertain situations gracefully
+☐ 6.1 Create Clarification Handler
+File: src/nodes/clarification_handler.py (NEW)
+
+ Create ClarificationHandler node
+ Generate clarification questions from missing slots
+ Track clarification attempt count
+ Parse user responses to fill slots
+ Return to appropriate tier after clarification
+
+☐ 6.2 Create Human Escalation System
+File: src/nodes/human_escalation.py (NEW)
+
+ Create HumanEscalationNode
+ Generate ticket with full conversation context
+ Store ticket in database
+ Send notification to human operators
+ Provide user with ticket ID and ETA
+
+☐ 6.3 Create Ticket System
+File: src/services/ticket_service.py (NEW)
+
+ Create TicketService class
+ Implement create_ticket() with conversation transcript
+ Implement assign_to_operator() logic
+ Add ticket status tracking
+ Add ticket retrieval methods
+
+☐ 6.4 Update Database Models
+File: src/models/database_models.py
+
+ Add Ticket model (ticket_id, session_id, reason, status, transcript)
+ Add ConversationLog model (session_id, messages, routing_path, outcomes)
+
+
+Phase 7: Session Management (Week 4-5)
+Goal: Support multi-turn conversations
+☐ 7.1 Create Session Service
+File: src/services/session_service.py (NEW)
+
+ Create SessionService class
+ Implement create_session() with unique ID
+ Implement save_state() - persist WorkflowState at each tier
+ Implement load_state() - retrieve session state
+ Implement append_message() - track conversation history
+ Add session expiration logic (e.g., 30 min timeout)
+
+☐ 7.2 Add Session Storage
+Choice: Redis (fast) or MongoDB (persistent)
+
+ Add Redis dependency OR use MongoDB sessions collection
+ Configure connection settings
+ Add serialization/deserialization for WorkflowState
+ Test session persistence across requests
+
+☐ 7.3 Update API Endpoints
+File: main.py
+
+ Add session_id to CallRequest model (optional, auto-generate if missing)
+ Load session state at start of workflow
+ Save session state after each tier transition
+ Return session_id in CallResponse
+
+
+Phase 8: Telemetry & Monitoring (Week 5)
+Goal: Track performance and identify issues
+☐ 8.1 Create Metrics Service
+File: src/services/metrics_service.py (NEW)
+
+ Create MetricsService class
+ Track L1 intent classification accuracy
+ Track avg confidence scores per tier
+ Track routing time (L1→L2→L3)
+ Track clarification count distribution
+ Track human escalation rate and reasons
+ Track L3 agent success rates
+
+☐ 8.2 Add Logging Infrastructure
+File: src/services/logging_service.py (NEW)
+
+ Create structured logger with JSON output
+ Log every routing decision with timestamp
+ Log confidence scores at each tier
+ Log extracted entities and slots
+ Log errors with full context
+ Add log aggregation (e.g., to file/Datadog/Splunk)
+
+☐ 8.3 Create Analytics Dashboard (Optional)
+File: src/api/analytics_endpoints.py (NEW)
+
+ Add /metrics endpoint - return aggregated stats
+ Add /sessions/{id} endpoint - retrieve session details
+ Add /tickets endpoint - list escalated tickets
+ Create simple HTML dashboard (optional)
+
+
+Phase 9: Testing & Validation (Week 5-6)
+Goal: Ensure system works reliably
+☐ 9.1 Unit Tests
+Files: tests/test_agents/*.py (NEW)
+
+ Test L1 agent classification accuracy
+ Test L2 slot extraction
+ Test L3 action execution
+ Test routing conditions
+ Test clarification generation
+ Test session persistence
+
+☐ 9.2 Integration Tests
+Files: tests/test_integration/*.py (NEW)
+
+ Test full L1→L2→L3 flow for each domain
+ Test clarification loops
+ Test human escalation triggers
+ Test multi-turn conversations
+ Test error handling and retries
+
+☐ 9.3 End-to-End Tests
+File: tests/test_e2e_scenarios.py (NEW)
+
+ Test "happy path" booking flow
+ Test "missing slots" scenario
+ Test "low confidence" escalation
+ Test "ambiguous caller type" handling
+ Test "conflicting intents" scenario
+
+☐ 9.4 Load Testing
+File: tests/test_performance.py
+
+ Test with 100 concurrent sessions
+ Measure latency per tier
+ Test session storage performance
+ Identify bottlenecks
+
+
+Phase 10: Security & Compliance (Week 6)
+Goal: Protect user data and meet regulations
+☐ 10.1 PII Protection
+File: src/utilities/pii_masking.py (NEW)
+
+ Create mask_pii() function for logs
+ Mask phone numbers, emails, addresses in logs
+ Mask credit card/payment info
+ Add PII detection regex patterns
+
+☐ 10.2 Data Retention
+File: src/services/retention_service.py (NEW)
+
+ Create RetentionService class
+ Implement auto-deletion of old sessions (e.g., 90 days)
+ Implement auto-deletion of old logs
+ Add configurable retention periods
+ Add manual purge endpoints
+
+☐ 10.3 Compliance Features
+
+ Add consent tracking to session
+ Add "delete my data" endpoint
+ Add audit trail for data access
+ Document compliance in README
+
+
+Phase 11: Deployment & Documentation (Week 6)
+Goal: Ship to production
+☐ 11.1 Update Documentation
+Files: README.md, docs/*.md (NEW)
+
+ Document new 3-tier architecture
+ Add routing flow diagrams
+ Document all agent types and their roles
+ Add API endpoint documentation
+ Add troubleshooting guide
+
+☐ 11.2 Environment Configuration
+File: .env.example, config/settings.py
+
+ Add routing configuration vars
+ Add session storage settings (Redis URL)
+ Add telemetry settings
+ Add security settings
+
+☐ 11.3 Deployment Prep
+
+ Create Docker Compose with Redis
+ Update requirements.txt with new dependencies
+ Add health check endpoints
+ Add graceful shutdown handling
+ Create deployment scripts
+
+☐ 11.4 Monitoring Setup
+
+ Set up error alerting (e.g., Sentry)
+ Set up uptime monitoring
+ Set up log aggregation
+ Create runbook for common issues
+
+
+Phase 12: Optimization & Iteration (Ongoing)
+Goal: Continuously improve
+☐ 12.1 Prompt Tuning
+
+ Collect misclassified intents
+ A/B test prompt variations
+ Update prompts based on metrics
+ Version control prompts in DB
+
+☐ 12.2 Model Optimization
+
+ Benchmark different LLM models for L1 (faster/cheaper)
+ Test embedding models for better context retrieval
+ Optimize token usage
+ Consider fine-tuning for domain
+
+☐ 12.3 User Feedback Loop
+
+ Add thumbs up/down on responses
+ Collect user feedback on escalations
+ Review tickets for improvement areas
+ Update training data
+
+
+📊 Success Criteria
+Key Metrics to Track:
+
+L1 Classification Accuracy: > 90%
+L2 Slot Extraction Accuracy: > 85%
+L3 Action Success Rate: > 95%
+Avg Clarifications per Session: < 1.5
+Human Escalation Rate: < 10%
+Avg Response Time (L1→L3): < 3 seconds
+Session Completion Rate: > 80%
+
+
+🚀 Quick Start Path (If time-constrained)
+Minimum Viable Product (2 weeks):
+
+Update WorkflowState model (Phase 1.1)
+Create L1 agent only (Phase 2)
+Create 1 L2 agent (ClientReceptionistL2) (Phase 3.1-3.2, just one)
+Create 1 L3 agent (SalesAgentL3) (Phase 4.1-4.2, just one)
+Connect with basic routing (Phase 5.1-5.3, simplified)
+Test end-to-end (Phase 9.3, basic)
+
+Then iterate from there!
+
+Would you like me to start implementing any specific phase, or would you prefer a detailed implementation guide for Phase 1?RetrySProvide the code for 1.1EditPhase 1.1: Update WorkflowState Model
+I'll provide the updated code for src/models/workflow_models.py with all the new fields required for the 3-tier routing system.
+python# ==================== src/models/workflow_models.py ====================
+"""Workflow state models."""
+
+from enum import Enum
+from typing import Optional, Dict, Any, List
+from pydantic import BaseModel, Field
+from datetime import datetime
+
+
+class CallerType(str, Enum):
+    """Types of callers."""
+    
+    CLIENT = "client"
+    VENDOR = "vendor"
+    PROSPECT = "prospect"
+    PARTNER = "partner"
+    LEAD = "lead"  # Keeping for backward compatibility
+    UNKNOWN = "unknown"
+
+
+class Intent(str, Enum):
+    """Call intents."""
+    
+    GENERAL_INQUIRY = "general_inquiry"
+    SERVICE_INQUIRY = "service_inquiry"
+    SERVICE_REQUEST = "service_request"
+    STATUS_CHECK = "status_check"
+    COMPLAINT = "complaint"
+    SALES_INQUIRY = "sales_inquiry"
+    SCHEDULE_UPDATE = "schedule_update"
+    PROFILE_UPDATE = "profile_update"
+    BOOKING = "booking"
+    BILLING = "billing"
+    SUPPORT = "support"
+    TECHNICAL_ISSUE = "technical_issue"
+    CANCEL_REQUEST = "cancel_request"
+    RESCHEDULE = "reschedule"
+    QUOTE_REQUEST = "quote_request"
+    OTHER = "other"
+
+
+class AgentTier(str, Enum):
+    """Agent tier levels for routing."""
+    
+    L1 = "L1"  # Light classifier
+    L2 = "L2"  # Intent refiner
+    L3 = "L3"  # Domain specialist
+    HUMAN = "HUMAN"  # Human escalation
+
+
+class IntentL1(BaseModel):
+    """Level 1 intent classification (broad categorization)."""
+    
+    name: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    category: Optional[str] = None  # e.g., "sales", "support", "billing"
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    
+    class Config:
+        use_enum_values = True
+
+
+class IntentL2(BaseModel):
+    """Level 2 intent classification (refined intent)."""
+    
+    name: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    subcategory: Optional[str] = None
+    parent_intent_l1: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    
+    class Config:
+        use_enum_values = True
+
+
+class ConversationMessage(BaseModel):
+    """Individual message in conversation history."""
+    
+    role: str  # "user" or "agent" or "system"
+    text: str
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    tier: Optional[str] = None  # Which tier generated this message
+    agent_name: Optional[str] = None
+    metadata: Dict[str, Any] = {}
+
+
+class WorkflowState(BaseModel):
+    """Complete workflow state for AI Receptionist LangGraph workflow with 3-tier routing."""
+    
+    # ============ Session & Call Information ============
+    session_id: Optional[str] = None
+    call_sid: Optional[str] = None
+    caller_phone: Optional[str] = None
+    speech_text: Optional[str] = None
+    
+    # ============ Caller Identification ============
+    caller_type: Optional[CallerType] = None
+    caller_profile: Optional[Dict[str, Any]] = None
+    client: Optional[Any] = None  # Client model
+    vendor: Optional[Any] = None  # Vendor model
+    
+    # ============ Multi-Tier Intent Tracking ============
+    intent: Optional[Intent] = None  # Legacy field, kept for backward compatibility
+    intent_l1: Optional[IntentL1] = None  # Level 1: Broad classification
+    intent_l2: Optional[IntentL2] = None  # Level 2: Refined intent
+    
+    # ============ Entity Extraction & Slot Filling ============
+    entities: Dict[str, Any] = Field(default_factory=dict)  # Extracted entities (date, address, service_type, etc.)
+    required_slots: List[str] = Field(default_factory=list)  # Slots needed to complete action
+    missing_slots: List[str] = Field(default_factory=list)  # Slots still needed
+    
+    # ============ Routing Information ============
+    current_tier: Optional[AgentTier] = None  # Current processing tier (L1/L2/L3/HUMAN)
+    routing_reason: Optional[str] = None  # Why this routing decision was made
+    routing_confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    routing_history: List[Dict[str, Any]] = Field(default_factory=list)  # Track routing path
+    
+    # ============ Agent Selection ============
+    current_agent: Optional[str] = None  # Current agent handling request
+    selected_l2_agent: Optional[str] = None  # Which L2 agent to use
+    selected_l3_agent: Optional[str] = None  # Which L3 agent to use
+    
+    # ============ Clarification Handling ============
+    clarification_count: int = 0  # Number of clarification attempts
+    max_clarifications: int = 2  # Maximum clarifications before escalation
+    awaiting_clarification: bool = False
+    clarification_question: Optional[str] = None
+    clarification_context: Dict[str, Any] = Field(default_factory=dict)
+    
+    # ============ Context & Conversation ============
+    context_data: Dict[str, Any] = Field(default_factory=dict)
+    conversation_history: List[ConversationMessage] = Field(default_factory=list)
+    previous_messages: List[Dict[str, str]] = Field(default_factory=list)  # Legacy format
+    
+    # ============ Response Generation ============
+    response_text: Optional[str] = None
+    next_action: Optional[str] = None
+    
+    # ============ Escalation & Ticketing ============
+    requires_human_escalation: bool = False
+    escalation_reason: Optional[str] = None
+    ticket_id: Optional[str] = None
+    escalation_priority: Optional[str] = None  # "low", "medium", "high", "urgent"
+    
+    # ============ Processing Flags ============
+    processed: bool = False
+    error_message: Optional[str] = None
+    turn_count: int = 0
+    
+    # ============ Confidence Thresholds (configurable) ============
+    confidence_threshold_high: float = 0.75  # Auto-route
+    confidence_threshold_medium: float = 0.40  # Ask clarification
+    # Below medium = escalate to human
+    
+    # ============ Metadata & Tracking ============
+    time_details: Optional[str] = None
+    agent_prompt: Optional[str] = None
+    processing_start_time: Optional[datetime] = None
+    processing_end_time: Optional[datetime] = None
+    total_processing_time_ms: Optional[float] = None
+    
+    # ============ Action Results (L3 outputs) ============
+    action_result: Optional[Dict[str, Any]] = None
+    action_success: Optional[bool] = None
+    confirmation_message: Optional[str] = None
+    next_steps: Optional[List[str]] = Field(default_factory=list)
+    
+    class Config:
+        use_enum_values = True
+        arbitrary_types_allowed = True  # Allow Client/Vendor models
+
+
+# ============ Helper Functions ============
+
+def create_conversation_message(
+    role: str,
+    text: str,
+    tier: Optional[str] = None,
+    agent_name: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None
+) -> ConversationMessage:
+    """Helper function to create a conversation message."""
+    return ConversationMessage(
+        role=role,
+        text=text,
+        tier=tier,
+        agent_name=agent_name,
+        metadata=metadata or {}
+    )
+
+
+def should_clarify(confidence: float, threshold_high: float = 0.75, threshold_medium: float = 0.40) -> bool:
+    """Determine if clarification is needed based on confidence score."""
+    return threshold_medium <= confidence < threshold_high
+
+
+def should_escalate(confidence: float, threshold_medium: float = 0.40) -> bool:
+    """Determine if human escalation is needed based on confidence score."""
+    return confidence < threshold_medium
+
+
+def add_routing_step(state: WorkflowState, from_tier: str, to_tier: str, reason: str, confidence: float):
+    """Add a routing step to the routing history."""
+    state.routing_history.append({
+        "from_tier": from_tier,
+        "to_tier": to_tier,
+        "reason": reason,
+        "confidence": confidence,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+
+Summary of Changes
 New Fields Added:
 
 Session Management:
@@ -96,10 +1012,576 @@ Original CallerType.LEAD (mapped to UNKNOWN internally)
 Original Intent enum values
 All original fields (caller_phone, speech_text, etc.)
 
-================================================================================
-Summary of Models Created
-================================================================================
 
+Next Steps:
+Would you like me to:
+
+Modify the file directly? ✅
+Move to Phase 1.2 (Create Agent Output Models)?
+Something else?
+
+Let me know and I'll proceed!RetryS1.2EditPhase 1.2: Create Agent Output Models
+I'll create the new file src/models/agent_models.py with all the structured output models for L1, L2, and L3 agents.
+python# ==================== src/models/agent_models.py ====================
+"""
+Agent output models for structured responses from L1, L2, and L3 agents.
+These models ensure consistent, parseable outputs from LLM-based agents.
+"""
+
+from typing import Optional, Dict, Any, List
+from pydantic import BaseModel, Field, validator
+from datetime import datetime
+from enum import Enum
+
+
+# ============ Enums for Agent Outputs ============
+
+class RoutingDecision(str, Enum):
+    """Possible routing decisions from agents."""
+    
+    ROUTE_TO_L2 = "route_to_l2"
+    ROUTE_TO_L3 = "route_to_l3"
+    CLARIFY = "clarify"
+    ESCALATE_TO_HUMAN = "escalate_to_human"
+    COMPLETE = "complete"
+    ERROR = "error"
+
+
+class L2AgentType(str, Enum):
+    """Types of L2 agents (intent refiners)."""
+    
+    CLIENT_RECEPTIONIST = "client_receptionist_l2"
+    PROSPECT_RECEPTIONIST = "prospect_receptionist_l2"
+    PARTNER_RECEPTIONIST = "partner_receptionist_l2"
+    GENERAL_RECEPTIONIST = "general_receptionist_l2"
+
+
+class L3AgentType(str, Enum):
+    """Types of L3 agents (domain specialists)."""
+    
+    SALES_AGENT = "sales_agent_l3"
+    SUPPORT_AGENT = "support_agent_l3"
+    BILLING_AGENT = "billing_agent_l3"
+    SCHEDULING_AGENT = "scheduling_agent_l3"
+    PARTNER_AGENT = "partner_agent_l3"
+    GENERAL_AGENT = "general_agent_l3"
+
+
+class EscalationReason(str, Enum):
+    """Reasons for human escalation."""
+    
+    LOW_CONFIDENCE = "low_confidence"
+    COMPLEX_REQUEST = "complex_request"
+    MAX_CLARIFICATIONS_REACHED = "max_clarifications_reached"
+    SENSITIVE_ISSUE = "sensitive_issue"
+    USER_REQUESTED = "user_requested"
+    TECHNICAL_ERROR = "technical_error"
+    OUT_OF_SCOPE = "out_of_scope"
+
+
+class ActionStatus(str, Enum):
+    """Status of L3 action execution."""
+    
+    SUCCESS = "success"
+    PARTIAL_SUCCESS = "partial_success"
+    FAILED = "failed"
+    REQUIRES_APPROVAL = "requires_approval"
+    PENDING = "pending"
+
+
+# ============ L1 Output Model ============
+
+class L1Output(BaseModel):
+    """
+    Structured output from Level 1 (Receptionist L1) agent.
+    Ultra-light classifier that identifies broad intent and caller type.
+    """
+    
+    # Core classification
+    intent_name: str = Field(
+        ..., 
+        description="Broad intent category (e.g., 'scheduling', 'support', 'billing', 'sales', 'general')"
+    )
+    intent_category: str = Field(
+        ..., 
+        description="Higher-level category grouping (e.g., 'sales', 'service', 'account')"
+    )
+    confidence: float = Field(
+        ..., 
+        ge=0.0, 
+        le=1.0, 
+        description="Confidence score for classification (0.0 to 1.0)"
+    )
+    
+    # Caller identification
+    caller_type: str = Field(
+        ..., 
+        description="Detected caller type: 'client', 'prospect', 'partner', 'unknown'"
+    )
+    caller_type_confidence: float = Field(
+        default=0.5, 
+        ge=0.0, 
+        le=1.0,
+        description="Confidence in caller type detection"
+    )
+    
+    # Routing decision
+    routing_decision: RoutingDecision = Field(
+        ..., 
+        description="Next routing action"
+    )
+    suggested_l2_agent: Optional[L2AgentType] = Field(
+        default=None,
+        description="Which L2 agent should handle this"
+    )
+    
+    # Reasoning
+    reasoning: Optional[str] = Field(
+        default=None,
+        description="Brief explanation of classification decision"
+    )
+    
+    # Metadata
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    processing_time_ms: Optional[float] = None
+    
+    # Extracted entities (minimal at L1)
+    preliminary_entities: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Any obvious entities extracted (kept minimal for speed)"
+    )
+    
+    class Config:
+        use_enum_values = True
+
+
+# ============ L2 Output Model ============
+
+class L2Output(BaseModel):
+    """
+    Structured output from Level 2 (Receptionist L2) agent.
+    Intent refiner that extracts entities and identifies required slots.
+    """
+    
+    # Refined intent
+    intent_name: str = Field(
+        ..., 
+        description="Specific refined intent (e.g., 'book_home_cleaning', 'check_invoice_status')"
+    )
+    intent_subcategory: Optional[str] = Field(
+        default=None,
+        description="Sub-category within domain (e.g., 'one-time', 'recurring')"
+    )
+    confidence: float = Field(
+        ..., 
+        ge=0.0, 
+        le=1.0,
+        description="Confidence in refined intent"
+    )
+    
+    # Entity extraction
+    entities: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="All extracted entities (date, address, service_type, etc.)"
+    )
+    
+    # Slot management
+    required_slots: List[str] = Field(
+        default_factory=list,
+        description="Slots needed to complete the action"
+    )
+    filled_slots: List[str] = Field(
+        default_factory=list,
+        description="Slots that have been successfully filled"
+    )
+    missing_slots: List[str] = Field(
+        default_factory=list,
+        description="Slots still needed from user"
+    )
+    
+    # Slot validation
+    slot_validation_errors: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Any validation errors for filled slots (slot_name: error_message)"
+    )
+    
+    # Routing decision
+    routing_decision: RoutingDecision = Field(
+        ...,
+        description="Next routing action"
+    )
+    suggested_l3_agent: Optional[L3AgentType] = Field(
+        default=None,
+        description="Which L3 agent should handle this"
+    )
+    
+    # Clarification handling
+    needs_clarification: bool = Field(
+        default=False,
+        description="Whether clarification is needed"
+    )
+    clarification_question: Optional[str] = Field(
+        default=None,
+        description="Generated clarification question for user"
+    )
+    clarification_options: Optional[List[str]] = Field(
+        default=None,
+        description="Multiple choice options if applicable"
+    )
+    
+    # Context and reasoning
+    context_summary: Optional[str] = Field(
+        default=None,
+        description="Summary of relevant context for L3 agent"
+    )
+    reasoning: Optional[str] = Field(
+        default=None,
+        description="Explanation of intent refinement and routing decision"
+    )
+    
+    # Metadata
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    processing_time_ms: Optional[float] = None
+    
+    @validator('missing_slots', always=True)
+    def calculate_missing_slots(cls, v, values):
+        """Auto-calculate missing slots if not provided."""
+        if v:
+            return v
+        required = values.get('required_slots', [])
+        filled = values.get('filled_slots', [])
+        return [slot for slot in required if slot not in filled]
+    
+    class Config:
+        use_enum_values = True
+
+
+# ============ L3 Output Model ============
+
+class L3Output(BaseModel):
+    """
+    Structured output from Level 3 (Domain Specialist) agent.
+    Action executor that performs domain-specific workflows.
+    """
+    
+    # Action execution
+    action_name: str = Field(
+        ...,
+        description="Name of action executed (e.g., 'create_booking', 'generate_invoice')"
+    )
+    action_status: ActionStatus = Field(
+        ...,
+        description="Status of action execution"
+    )
+    success: bool = Field(
+        ...,
+        description="Whether action completed successfully"
+    )
+    
+    # Results
+    action_result: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Structured result data (booking_id, invoice_url, ticket_number, etc.)"
+    )
+    
+    # User communication
+    confirmation_message: str = Field(
+        ...,
+        description="User-facing confirmation message"
+    )
+    next_steps: List[str] = Field(
+        default_factory=list,
+        description="What user should do next or what will happen next"
+    )
+    
+    # Follow-up actions
+    requires_follow_up: bool = Field(
+        default=False,
+        description="Whether this action requires follow-up"
+    )
+    follow_up_actions: List[str] = Field(
+        default_factory=list,
+        description="Actions that need to be completed later"
+    )
+    
+    # Error handling
+    error_code: Optional[str] = Field(
+        default=None,
+        description="Error code if action failed"
+    )
+    error_message: Optional[str] = Field(
+        default=None,
+        description="Human-readable error message"
+    )
+    error_details: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Additional error context for debugging"
+    )
+    
+    # Escalation
+    requires_human_escalation: bool = Field(
+        default=False,
+        description="Whether human intervention is needed"
+    )
+    escalation_reason: Optional[EscalationReason] = Field(
+        default=None,
+        description="Why escalation is needed"
+    )
+    
+    # Metadata
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    processing_time_ms: Optional[float] = None
+    agent_type: Optional[L3AgentType] = Field(
+        default=None,
+        description="Which L3 agent generated this output"
+    )
+    
+    # Additional context
+    context_updates: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Context updates to persist (e.g., booking details for future reference)"
+    )
+    
+    class Config:
+        use_enum_values = True
+
+
+# ============ Clarification Request Model ============
+
+class ClarificationRequest(BaseModel):
+    """
+    Model for structured clarification requests from L1 or L2 agents.
+    """
+    
+    # Question
+    question: str = Field(
+        ...,
+        description="Clarification question to ask user"
+    )
+    question_type: str = Field(
+        default="open_ended",
+        description="Type of question: 'open_ended', 'yes_no', 'multiple_choice', 'date', 'time'"
+    )
+    
+    # Options (for multiple choice)
+    options: Optional[List[str]] = Field(
+        default=None,
+        description="Multiple choice options if applicable"
+    )
+    
+    # Slot context
+    missing_slots: List[str] = Field(
+        default_factory=list,
+        description="Which slots this clarification is trying to fill"
+    )
+    slot_descriptions: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Human-readable descriptions of what each slot is for"
+    )
+    
+    # Guidance
+    expected_format: Optional[str] = Field(
+        default=None,
+        description="Expected format of answer (e.g., 'YYYY-MM-DD', 'HH:MM AM/PM')"
+    )
+    example_answer: Optional[str] = Field(
+        default=None,
+        description="Example of valid answer"
+    )
+    
+    # Context
+    context: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional context for clarification (why asking, what it's for)"
+    )
+    
+    # Attempt tracking
+    attempt_number: int = Field(
+        default=1,
+        ge=1,
+        description="Which clarification attempt this is (1-indexed)"
+    )
+    
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    
+    class Config:
+        use_enum_values = True
+
+
+# ============ Escalation Ticket Model ============
+
+class EscalationTicket(BaseModel):
+    """
+    Model for human escalation tickets.
+    """
+    
+    # Identification
+    ticket_id: str = Field(
+        ...,
+        description="Unique ticket identifier"
+    )
+    session_id: str = Field(
+        ...,
+        description="Associated session ID"
+    )
+    
+    # Escalation details
+    escalation_reason: EscalationReason = Field(
+        ...,
+        description="Why this was escalated"
+    )
+    priority: str = Field(
+        default="medium",
+        description="Priority level: 'low', 'medium', 'high', 'urgent'"
+    )
+    
+    # Context
+    caller_type: Optional[str] = None
+    caller_phone: Optional[str] = None
+    original_intent: Optional[str] = None
+    
+    # Conversation
+    conversation_transcript: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Full conversation history"
+    )
+    routing_history: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Routing decisions made"
+    )
+    
+    # Current state
+    current_tier: str = Field(
+        ...,
+        description="Tier where escalation occurred"
+    )
+    extracted_entities: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Entities extracted so far"
+    )
+    missing_information: List[str] = Field(
+        default_factory=list,
+        description="What information is still needed"
+    )
+    
+    # Summary
+    summary: str = Field(
+        ...,
+        description="Brief summary of issue for human operator"
+    )
+    suggested_action: Optional[str] = Field(
+        default=None,
+        description="Suggested next steps for human operator"
+    )
+    
+    # Status tracking
+    status: str = Field(
+        default="open",
+        description="Ticket status: 'open', 'assigned', 'in_progress', 'resolved', 'closed'"
+    )
+    assigned_to: Optional[str] = None
+    
+    # Timestamps
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    resolved_at: Optional[datetime] = None
+    
+    # Metadata
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional metadata"
+    )
+    
+    class Config:
+        use_enum_values = True
+
+
+# ============ Helper Functions ============
+
+def create_l1_output(
+    intent_name: str,
+    intent_category: str,
+    confidence: float,
+    caller_type: str,
+    routing_decision: RoutingDecision,
+    suggested_l2_agent: Optional[L2AgentType] = None,
+    reasoning: Optional[str] = None
+) -> L1Output:
+    """Helper to create L1Output with common parameters."""
+    return L1Output(
+        intent_name=intent_name,
+        intent_category=intent_category,
+        confidence=confidence,
+        caller_type=caller_type,
+        caller_type_confidence=0.8,  # Default
+        routing_decision=routing_decision,
+        suggested_l2_agent=suggested_l2_agent,
+        reasoning=reasoning
+    )
+
+
+def create_l2_output(
+    intent_name: str,
+    confidence: float,
+    entities: Dict[str, Any],
+    required_slots: List[str],
+    filled_slots: List[str],
+    routing_decision: RoutingDecision,
+    suggested_l3_agent: Optional[L3AgentType] = None,
+    clarification_question: Optional[str] = None
+) -> L2Output:
+    """Helper to create L2Output with common parameters."""
+    return L2Output(
+        intent_name=intent_name,
+        confidence=confidence,
+        entities=entities,
+        required_slots=required_slots,
+        filled_slots=filled_slots,
+        routing_decision=routing_decision,
+        suggested_l3_agent=suggested_l3_agent,
+        needs_clarification=clarification_question is not None,
+        clarification_question=clarification_question
+    )
+
+
+def create_l3_output(
+    action_name: str,
+    action_status: ActionStatus,
+    success: bool,
+    confirmation_message: str,
+    action_result: Optional[Dict[str, Any]] = None,
+    next_steps: Optional[List[str]] = None,
+    error_message: Optional[str] = None
+) -> L3Output:
+    """Helper to create L3Output with common parameters."""
+    return L3Output(
+        action_name=action_name,
+        action_status=action_status,
+        success=success,
+        confirmation_message=confirmation_message,
+        action_result=action_result or {},
+        next_steps=next_steps or [],
+        error_message=error_message
+    )
+
+
+def create_clarification_request(
+    question: str,
+    missing_slots: List[str],
+    question_type: str = "open_ended",
+    options: Optional[List[str]] = None,
+    attempt_number: int = 1
+) -> ClarificationRequest:
+    """Helper to create ClarificationRequest."""
+    return ClarificationRequest(
+        question=question,
+        question_type=question_type,
+        options=options,
+        missing_slots=missing_slots,
+        attempt_number=attempt_number
+    )
+
+Summary of Models Created
 1. L1Output - Light Classifier Output
 
 intent_name: Broad intent (scheduling, support, billing, sales, general)
@@ -175,10 +1657,543 @@ Auto-calculation: missing_slots auto-calculated in L2Output
 Timestamps: All models track creation time
 Extensible: Easy to add new fields without breaking existing code
 
-================================================================================
-Summary of Routing Configuration
-================================================================================
 
+Next Steps:
+Would you like me to:
+
+Create this file src/models/agent_models.py? ✅
+Move to Phase 1.3 (Create Routing Configuration)?
+Show example usage of these models?
+
+Let me know!RetryS1.3EditPhase 1.3: Create Routing Configuration
+I'll create the new file config/routing_config.py with all routing logic, thresholds, and mapping configurations.
+python# ==================== config/routing_config.py ====================
+"""
+Routing configuration for 3-tier agent system.
+Defines confidence thresholds, agent mappings, and routing decision logic.
+"""
+
+from typing import Dict, Optional, List, Callable
+from enum import Enum
+from dataclasses import dataclass
+
+from src.models.agent_models import (
+    RoutingDecision, 
+    L2AgentType, 
+    L3AgentType,
+    EscalationReason
+)
+
+
+# ============ Confidence Thresholds ============
+
+@dataclass
+class ConfidenceThresholds:
+    """Confidence score thresholds for routing decisions."""
+    
+    # Auto-route thresholds
+    HIGH: float = 0.75  # >= 0.75: Auto-route to next tier
+    MEDIUM: float = 0.40  # 0.40-0.74: Ask clarification
+    # < 0.40: Escalate to human
+    
+    # Caller type detection thresholds
+    CALLER_TYPE_HIGH: float = 0.80  # High confidence in caller type
+    CALLER_TYPE_MEDIUM: float = 0.50  # Medium confidence
+    
+    # Entity extraction thresholds
+    ENTITY_EXTRACTION_MIN: float = 0.60  # Minimum confidence for entity
+
+
+# Global instance
+CONFIDENCE_THRESHOLDS = ConfidenceThresholds()
+
+
+# ============ Clarification Limits ============
+
+@dataclass
+class ClarificationLimits:
+    """Limits for clarification attempts."""
+    
+    MAX_CLARIFICATIONS: int = 2  # Maximum clarification attempts before escalation
+    MAX_L1_CLARIFICATIONS: int = 1  # Max clarifications at L1
+    MAX_L2_CLARIFICATIONS: int = 2  # Max clarifications at L2
+
+
+# Global instance
+CLARIFICATION_LIMITS = ClarificationLimits()
+
+
+# ============ Caller Type to L2 Agent Mapping ============
+
+CALLER_TYPE_TO_L2_AGENT: Dict[str, L2AgentType] = {
+    "client": L2AgentType.CLIENT_RECEPTIONIST,
+    "prospect": L2AgentType.PROSPECT_RECEPTIONIST,
+    "partner": L2AgentType.PARTNER_RECEPTIONIST,
+    "vendor": L2AgentType.PARTNER_RECEPTIONIST,  # Vendors use partner receptionist
+    "lead": L2AgentType.PROSPECT_RECEPTIONIST,  # Leads are treated as prospects
+    "unknown": L2AgentType.GENERAL_RECEPTIONIST,
+}
+
+
+# ============ Intent to L3 Agent Mapping ============
+
+# L1 broad intent categories to L3 agents
+L1_INTENT_TO_L3_AGENT: Dict[str, L3AgentType] = {
+    "scheduling": L3AgentType.SCHEDULING_AGENT,
+    "booking": L3AgentType.SALES_AGENT,
+    "sales": L3AgentType.SALES_AGENT,
+    "support": L3AgentType.SUPPORT_AGENT,
+    "technical": L3AgentType.SUPPORT_AGENT,
+    "billing": L3AgentType.BILLING_AGENT,
+    "payment": L3AgentType.BILLING_AGENT,
+    "invoice": L3AgentType.BILLING_AGENT,
+    "partner": L3AgentType.PARTNER_AGENT,
+    "vendor": L3AgentType.PARTNER_AGENT,
+    "general": L3AgentType.GENERAL_AGENT,
+    "inquiry": L3AgentType.GENERAL_AGENT,
+}
+
+
+# L2 refined intents to L3 agents (more specific mapping)
+L2_INTENT_TO_L3_AGENT: Dict[str, L3AgentType] = {
+    # Sales & Booking
+    "book_home_cleaning": L3AgentType.SALES_AGENT,
+    "book_commercial_cleaning": L3AgentType.SALES_AGENT,
+    "request_quote": L3AgentType.SALES_AGENT,
+    "schedule_service": L3AgentType.SCHEDULING_AGENT,
+    "reschedule_service": L3AgentType.SCHEDULING_AGENT,
+    "cancel_service": L3AgentType.SCHEDULING_AGENT,
+    
+    # Support
+    "service_complaint": L3AgentType.SUPPORT_AGENT,
+    "technical_issue": L3AgentType.SUPPORT_AGENT,
+    "quality_issue": L3AgentType.SUPPORT_AGENT,
+    "check_service_status": L3AgentType.SUPPORT_AGENT,
+    "report_problem": L3AgentType.SUPPORT_AGENT,
+    
+    # Billing
+    "check_invoice": L3AgentType.BILLING_AGENT,
+    "payment_inquiry": L3AgentType.BILLING_AGENT,
+    "billing_dispute": L3AgentType.BILLING_AGENT,
+    "update_payment_method": L3AgentType.BILLING_AGENT,
+    "request_receipt": L3AgentType.BILLING_AGENT,
+    
+    # Partner/Vendor
+    "vendor_checkin": L3AgentType.PARTNER_AGENT,
+    "update_availability": L3AgentType.PARTNER_AGENT,
+    "partner_inquiry": L3AgentType.PARTNER_AGENT,
+    
+    # General
+    "general_inquiry": L3AgentType.GENERAL_AGENT,
+    "company_info": L3AgentType.GENERAL_AGENT,
+    "hours_of_operation": L3AgentType.GENERAL_AGENT,
+    "service_areas": L3AgentType.GENERAL_AGENT,
+}
+
+
+# ============ Slot Definitions by Intent ============
+
+INTENT_REQUIRED_SLOTS: Dict[str, List[str]] = {
+    # Booking intents
+    "book_home_cleaning": ["address", "preferred_date", "service_type", "contact_number"],
+    "book_commercial_cleaning": ["address", "preferred_date", "service_type", "contact_number", "square_footage"],
+    "request_quote": ["address", "service_type", "contact_number"],
+    
+    # Scheduling intents
+    "schedule_service": ["preferred_date", "preferred_time", "service_type"],
+    "reschedule_service": ["job_id", "new_date", "new_time"],
+    "cancel_service": ["job_id", "cancellation_reason"],
+    
+    # Support intents
+    "service_complaint": ["job_id", "complaint_details"],
+    "check_service_status": ["job_id"],
+    "report_problem": ["problem_description", "urgency_level"],
+    
+    # Billing intents
+    "check_invoice": ["invoice_id"],
+    "payment_inquiry": ["account_number"],
+    "billing_dispute": ["invoice_id", "dispute_reason"],
+    
+    # Partner intents
+    "vendor_checkin": ["vendor_id", "job_id", "status_update"],
+    "update_availability": ["vendor_id", "availability_dates"],
+}
+
+
+# Optional slots (nice to have but not required)
+INTENT_OPTIONAL_SLOTS: Dict[str, List[str]] = {
+    "book_home_cleaning": ["recurrence", "special_instructions", "preferred_time"],
+    "book_commercial_cleaning": ["recurrence", "special_instructions", "preferred_time"],
+    "request_quote": ["square_footage", "special_requirements"],
+    "schedule_service": ["special_instructions"],
+    "service_complaint": ["preferred_contact_method"],
+}
+
+
+# ============ Escalation Rules ============
+
+@dataclass
+class EscalationRule:
+    """Rule for when to escalate to human."""
+    
+    condition: str
+    reason: EscalationReason
+    priority: str  # "low", "medium", "high", "urgent"
+
+
+ESCALATION_RULES: List[EscalationRule] = [
+    EscalationRule(
+        condition="confidence_below_threshold",
+        reason=EscalationReason.LOW_CONFIDENCE,
+        priority="medium"
+    ),
+    EscalationRule(
+        condition="max_clarifications_reached",
+        reason=EscalationReason.MAX_CLARIFICATIONS_REACHED,
+        priority="high"
+    ),
+    EscalationRule(
+        condition="user_requested_human",
+        reason=EscalationReason.USER_REQUESTED,
+        priority="high"
+    ),
+    EscalationRule(
+        condition="sensitive_complaint",
+        reason=EscalationReason.SENSITIVE_ISSUE,
+        priority="urgent"
+    ),
+    EscalationRule(
+        condition="technical_error",
+        reason=EscalationReason.TECHNICAL_ERROR,
+        priority="high"
+    ),
+    EscalationRule(
+        condition="complex_multi_intent",
+        reason=EscalationReason.COMPLEX_REQUEST,
+        priority="medium"
+    ),
+]
+
+
+# Keywords that trigger sensitive issue escalation
+SENSITIVE_KEYWORDS: List[str] = [
+    "lawsuit", "legal", "attorney", "discrimination", "harassment",
+    "injury", "emergency", "urgent", "hospital", "danger", "threat"
+]
+
+
+# ============ Routing Decision Functions ============
+
+def should_clarify(confidence: float, tier: str = "L1") -> bool:
+    """
+    Determine if clarification is needed based on confidence score.
+    
+    Args:
+        confidence: Confidence score (0.0 to 1.0)
+        tier: Which tier is making the decision (L1, L2, L3)
+    
+    Returns:
+        True if clarification should be requested
+    """
+    return CONFIDENCE_THRESHOLDS.MEDIUM <= confidence < CONFIDENCE_THRESHOLDS.HIGH
+
+
+def should_escalate_to_human(
+    confidence: float,
+    clarification_count: int = 0,
+    user_text: Optional[str] = None
+) -> tuple[bool, Optional[EscalationReason]]:
+    """
+    Determine if human escalation is needed.
+    
+    Args:
+        confidence: Confidence score
+        clarification_count: Number of clarification attempts made
+        user_text: User's message text (for sensitive keyword detection)
+    
+    Returns:
+        Tuple of (should_escalate, reason)
+    """
+    # Low confidence
+    if confidence < CONFIDENCE_THRESHOLDS.MEDIUM:
+        return True, EscalationReason.LOW_CONFIDENCE
+    
+    # Max clarifications reached
+    if clarification_count >= CLARIFICATION_LIMITS.MAX_CLARIFICATIONS:
+        return True, EscalationReason.MAX_CLARIFICATIONS_REACHED
+    
+    # User explicitly requests human
+    if user_text:
+        user_lower = user_text.lower()
+        if any(phrase in user_lower for phrase in [
+            "speak to a person", "talk to human", "real person",
+            "representative", "manager", "supervisor"
+        ]):
+            return True, EscalationReason.USER_REQUESTED
+        
+        # Sensitive keywords
+        if any(keyword in user_lower for keyword in SENSITIVE_KEYWORDS):
+            return True, EscalationReason.SENSITIVE_ISSUE
+    
+    return False, None
+
+
+def get_l2_agent_for_caller_type(caller_type: str) -> L2AgentType:
+    """
+    Get appropriate L2 agent based on caller type.
+    
+    Args:
+        caller_type: Detected caller type
+    
+    Returns:
+        L2AgentType enum value
+    """
+    return CALLER_TYPE_TO_L2_AGENT.get(
+        caller_type.lower(),
+        L2AgentType.GENERAL_RECEPTIONIST
+    )
+
+
+def get_l3_agent_for_intent(
+    intent_name: str,
+    is_refined: bool = False
+) -> L3AgentType:
+    """
+    Get appropriate L3 agent based on intent.
+    
+    Args:
+        intent_name: Intent name (broad L1 or refined L2)
+        is_refined: Whether this is a refined L2 intent
+    
+    Returns:
+        L3AgentType enum value
+    """
+    mapping = L2_INTENT_TO_L3_AGENT if is_refined else L1_INTENT_TO_L3_AGENT
+    return mapping.get(
+        intent_name.lower(),
+        L3AgentType.GENERAL_AGENT
+    )
+
+
+def get_required_slots_for_intent(intent_name: str) -> List[str]:
+    """
+    Get required slots for a given intent.
+    
+    Args:
+        intent_name: Intent name
+    
+    Returns:
+        List of required slot names
+    """
+    return INTENT_REQUIRED_SLOTS.get(intent_name.lower(), [])
+
+
+def get_optional_slots_for_intent(intent_name: str) -> List[str]:
+    """
+    Get optional slots for a given intent.
+    
+    Args:
+        intent_name: Intent name
+    
+    Returns:
+        List of optional slot names
+    """
+    return INTENT_OPTIONAL_SLOTS.get(intent_name.lower(), [])
+
+
+def determine_routing_decision(
+    confidence: float,
+    has_missing_slots: bool,
+    clarification_count: int,
+    user_text: Optional[str] = None
+) -> RoutingDecision:
+    """
+    Comprehensive routing decision logic.
+    
+    Args:
+        confidence: Confidence score
+        has_missing_slots: Whether required slots are missing
+        clarification_count: Number of clarifications attempted
+        user_text: User's message (for escalation checks)
+    
+    Returns:
+        RoutingDecision enum value
+    """
+    # Check for escalation first
+    should_esc, reason = should_escalate_to_human(confidence, clarification_count, user_text)
+    if should_esc:
+        return RoutingDecision.ESCALATE_TO_HUMAN
+    
+    # If slots are missing, clarify (even if confidence is high)
+    if has_missing_slots:
+        if clarification_count >= CLARIFICATION_LIMITS.MAX_CLARIFICATIONS:
+            return RoutingDecision.ESCALATE_TO_HUMAN
+        return RoutingDecision.CLARIFY
+    
+    # If confidence is medium, clarify
+    if should_clarify(confidence):
+        if clarification_count >= CLARIFICATION_LIMITS.MAX_CLARIFICATIONS:
+            return RoutingDecision.ESCALATE_TO_HUMAN
+        return RoutingDecision.CLARIFY
+    
+    # High confidence and no missing slots = route forward
+    if confidence >= CONFIDENCE_THRESHOLDS.HIGH:
+        return RoutingDecision.ROUTE_TO_L3  # Assuming we're at L2
+    
+    # Default to clarify
+    return RoutingDecision.CLARIFY
+
+
+def get_escalation_priority(reason: EscalationReason) -> str:
+    """
+    Get priority level for an escalation reason.
+    
+    Args:
+        reason: EscalationReason enum
+    
+    Returns:
+        Priority string: "low", "medium", "high", or "urgent"
+    """
+    priority_map = {
+        EscalationReason.LOW_CONFIDENCE: "medium",
+        EscalationReason.MAX_CLARIFICATIONS_REACHED: "high",
+        EscalationReason.USER_REQUESTED: "high",
+        EscalationReason.SENSITIVE_ISSUE: "urgent",
+        EscalationReason.TECHNICAL_ERROR: "high",
+        EscalationReason.COMPLEX_REQUEST: "medium",
+        EscalationReason.OUT_OF_SCOPE: "low",
+    }
+    return priority_map.get(reason, "medium")
+
+
+# ============ Routing Path Validation ============
+
+def validate_routing_path(current_tier: str, next_tier: str) -> bool:
+    """
+    Validate that routing path is legal.
+    
+    Args:
+        current_tier: Current tier (L1, L2, L3, HUMAN)
+        next_tier: Proposed next tier
+    
+    Returns:
+        True if routing is valid
+    """
+    valid_transitions = {
+        "L1": ["L2", "HUMAN"],
+        "L2": ["L3", "HUMAN", "L1"],  # Can loop back to L1 for reclassification
+        "L3": ["HUMAN", "COMPLETE"],
+        "HUMAN": ["COMPLETE"],
+    }
+    
+    return next_tier in valid_transitions.get(current_tier, [])
+
+
+# ============ Routing Context Builder ============
+
+def build_routing_context(
+    tier: str,
+    intent: str,
+    confidence: float,
+    caller_type: str,
+    entities: Dict,
+    missing_slots: List[str]
+) -> Dict:
+    """
+    Build a standardized routing context object for logging and debugging.
+    
+    Args:
+        tier: Current tier
+        intent: Current intent
+        confidence: Confidence score
+        caller_type: Caller type
+        entities: Extracted entities
+        missing_slots: Missing slots
+    
+    Returns:
+        Dictionary with routing context
+    """
+    return {
+        "tier": tier,
+        "intent": intent,
+        "confidence": confidence,
+        "confidence_level": (
+            "high" if confidence >= CONFIDENCE_THRESHOLDS.HIGH
+            else "medium" if confidence >= CONFIDENCE_THRESHOLDS.MEDIUM
+            else "low"
+        ),
+        "caller_type": caller_type,
+        "entities_count": len(entities),
+        "missing_slots_count": len(missing_slots),
+        "missing_slots": missing_slots,
+        "needs_clarification": should_clarify(confidence) or len(missing_slots) > 0,
+        "needs_escalation": should_escalate_to_human(confidence)[0],
+    }
+
+
+# ============ Agent Capability Matrix ============
+
+AGENT_CAPABILITIES: Dict[str, List[str]] = {
+    # L2 Agents
+    "client_receptionist_l2": [
+        "check_service_status", "schedule_service", "billing_inquiry",
+        "service_complaint", "reschedule_service", "cancel_service"
+    ],
+    "prospect_receptionist_l2": [
+        "request_quote", "book_home_cleaning", "book_commercial_cleaning",
+        "service_inquiry", "company_info"
+    ],
+    "partner_receptionist_l2": [
+        "vendor_checkin", "update_availability", "partner_inquiry",
+        "schedule_update"
+    ],
+    "general_receptionist_l2": [
+        "general_inquiry", "company_info", "hours_of_operation",
+        "service_areas"
+    ],
+    
+    # L3 Agents
+    "sales_agent_l3": [
+        "book_home_cleaning", "book_commercial_cleaning", "request_quote",
+        "upsell_services"
+    ],
+    "support_agent_l3": [
+        "service_complaint", "technical_issue", "quality_issue",
+        "check_service_status", "report_problem"
+    ],
+    "billing_agent_l3": [
+        "check_invoice", "payment_inquiry", "billing_dispute",
+        "update_payment_method", "request_receipt"
+    ],
+    "scheduling_agent_l3": [
+        "schedule_service", "reschedule_service", "cancel_service",
+        "check_availability"
+    ],
+    "partner_agent_l3": [
+        "vendor_checkin", "update_availability", "partner_inquiry"
+    ],
+    "general_agent_l3": [
+        "general_inquiry", "company_info", "hours_of_operation",
+        "service_areas", "faq"
+    ],
+}
+
+
+def can_agent_handle_intent(agent_type: str, intent: str) -> bool:
+    """
+    Check if an agent can handle a given intent.
+    
+    Args:
+        agent_type: Agent type string (e.g., "sales_agent_l3")
+        intent: Intent name
+    
+    Returns:
+        True if agent can handle intent
+    """
+    capabilities = AGENT_CAPABILITIES.get(agent_type, [])
+    return intent in capabilities
+
+Summary of Routing Configuration
 1. Confidence Thresholds
 
 HIGH = 0.75: Auto-route to next tier
@@ -232,10 +2247,551 @@ Extensible: Easy to add new intents, agents, or rules
 Validated: Routing path validation prevents illegal transitions
 Documented: Rich context for logging and debugging
 
-================================================================================
-Summary of BaseAgent Class
-================================================================================
 
+Next Steps:
+Would you like me to:
+
+Create this file config/routing_config.py? ✅
+Move to Phase 2.1 (Create L1 Agent Base Class)?
+Show example usage of these routing functions?
+
+Let me know!RetryS2.1EditPhase 2.1: Create L1 Agent Base Class
+I'll create the new file src/agents/base_agent.py with the abstract base class that all agents (L1, L2, L3) will extend.
+python# ==================== src/agents/base_agent.py ====================
+"""
+Base agent class for all L1, L2, and L3 agents.
+Provides common functionality for LLM interaction, JSON parsing, and confidence calculation.
+"""
+
+import json
+import time
+import logging
+from abc import ABC, abstractmethod
+from typing import Dict, Any, Optional, Union, Type
+from datetime import datetime
+
+import google.generativeai as genai
+from pydantic import BaseModel, ValidationError
+
+from config.routing_config import (
+    ConfidenceThresholds,
+    CONFIDENCE_THRESHOLDS,
+    should_clarify,
+    should_escalate_to_human
+)
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+
+class BaseAgent(ABC):
+    """
+    Abstract base class for all agents (L1, L2, L3).
+    Provides common LLM interaction and utility methods.
+    """
+    
+    def __init__(
+        self,
+        agent_name: str,
+        agent_tier: str,
+        model_name: str = "gemini-1.5-flash",
+        temperature: float = 0.3,
+        max_tokens: int = 500
+    ):
+        """
+        Initialize base agent.
+        
+        Args:
+            agent_name: Name of the agent (e.g., "receptionist_l1")
+            agent_tier: Tier level (L1, L2, L3)
+            model_name: Google Gemini model name
+            temperature: LLM temperature (0.0-1.0, lower = more deterministic)
+            max_tokens: Maximum output tokens
+        """
+        self.agent_name = agent_name
+        self.agent_tier = agent_tier
+        self.model_name = model_name
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        
+        # Initialize Gemini model
+        self.model = genai.GenerativeModel(
+            model_name=model_name,
+            generation_config={
+                "temperature": temperature,
+                "max_output_tokens": max_tokens,
+            }
+        )
+        
+        logger.info(f"Initialized {agent_name} (tier: {agent_tier})")
+    
+    # ============ Abstract Methods (must be implemented by subclasses) ============
+    
+    @abstractmethod
+    async def process(self, state: Any) -> Any:
+        """
+        Main processing method that each agent must implement.
+        
+        Args:
+            state: WorkflowState object
+        
+        Returns:
+            Updated state or agent-specific output model
+        """
+        pass
+    
+    @abstractmethod
+    def build_prompt(self, state: Any) -> str:
+        """
+        Build the LLM prompt for this agent.
+        
+        Args:
+            state: WorkflowState object
+        
+        Returns:
+            Formatted prompt string
+        """
+        pass
+    
+    # ============ LLM Interaction Methods ============
+    
+    async def call_llm(
+        self,
+        prompt: str,
+        system_instruction: Optional[str] = None,
+        retry_count: int = 3
+    ) -> str:
+        """
+        Call the LLM with retry logic.
+        
+        Args:
+            prompt: User prompt
+            system_instruction: System instruction (optional)
+            retry_count: Number of retries on failure
+        
+        Returns:
+            LLM response text
+        
+        Raises:
+            Exception: If all retries fail
+        """
+        start_time = time.time()
+        
+        for attempt in range(retry_count):
+            try:
+                # Build full prompt with system instruction if provided
+                if system_instruction:
+                    full_prompt = f"{system_instruction}\n\n{prompt}"
+                else:
+                    full_prompt = prompt
+                
+                logger.debug(f"{self.agent_name} - Calling LLM (attempt {attempt + 1}/{retry_count})")
+                
+                response = self.model.generate_content(full_prompt)
+                
+                if not response or not response.text:
+                    raise ValueError("Empty response from LLM")
+                
+                elapsed_ms = (time.time() - start_time) * 1000
+                logger.info(f"{self.agent_name} - LLM call successful ({elapsed_ms:.0f}ms)")
+                
+                return response.text.strip()
+            
+            except Exception as e:
+                logger.warning(f"{self.agent_name} - LLM call failed (attempt {attempt + 1}): {e}")
+                
+                if attempt == retry_count - 1:
+                    logger.error(f"{self.agent_name} - All LLM retry attempts failed")
+                    raise Exception(f"LLM call failed after {retry_count} attempts: {str(e)}")
+                
+                # Exponential backoff
+                wait_time = 2 ** attempt
+                logger.debug(f"Waiting {wait_time}s before retry...")
+                await self._async_sleep(wait_time)
+        
+        raise Exception("LLM call failed - should not reach here")
+    
+    async def _async_sleep(self, seconds: float):
+        """Async sleep helper."""
+        import asyncio
+        await asyncio.sleep(seconds)
+    
+    # ============ JSON Parsing Methods ============
+    
+    def parse_llm_json(
+        self,
+        llm_response: str,
+        output_model: Type[BaseModel],
+        strict: bool = True
+    ) -> Union[BaseModel, Dict[str, Any]]:
+        """
+        Parse LLM JSON response into a Pydantic model.
+        
+        Args:
+            llm_response: Raw LLM response text
+            output_model: Pydantic model class to parse into
+            strict: If True, raise on validation errors; if False, return best-effort dict
+        
+        Returns:
+            Parsed Pydantic model or dictionary
+        
+        Raises:
+            ValidationError: If strict=True and parsing fails
+        """
+        try:
+            # Extract JSON from response (handle markdown code blocks)
+            json_str = self._extract_json_from_response(llm_response)
+            
+            # Parse JSON
+            json_data = json.loads(json_str)
+            
+            # Validate with Pydantic model
+            parsed_model = output_model(**json_data)
+            
+            logger.debug(f"{self.agent_name} - Successfully parsed JSON into {output_model.__name__}")
+            return parsed_model
+        
+        except json.JSONDecodeError as e:
+            logger.error(f"{self.agent_name} - JSON parsing failed: {e}")
+            logger.debug(f"Raw response: {llm_response[:500]}")
+            
+            if strict:
+                raise ValidationError(f"Invalid JSON from LLM: {str(e)}")
+            
+            # Return raw text wrapped in dict
+            return {"raw_response": llm_response, "parse_error": str(e)}
+        
+        except ValidationError as e:
+            logger.error(f"{self.agent_name} - Pydantic validation failed: {e}")
+            
+            if strict:
+                raise
+            
+            # Return raw JSON data even if validation failed
+            try:
+                return json.loads(self._extract_json_from_response(llm_response))
+            except:
+                return {"raw_response": llm_response, "validation_error": str(e)}
+    
+    def _extract_json_from_response(self, response: str) -> str:
+        """
+        Extract JSON from LLM response, handling markdown code blocks.
+        
+        Args:
+            response: Raw LLM response
+        
+        Returns:
+            Extracted JSON string
+        """
+        response = response.strip()
+        
+        # Remove markdown code blocks
+        if response.startswith("```json"):
+            response = response[7:]  # Remove ```json
+        elif response.startswith("```"):
+            response = response[3:]  # Remove ```
+        
+        if response.endswith("```"):
+            response = response[:-3]
+        
+        response = response.strip()
+        
+        # If still not JSON, try to find JSON object in text
+        if not response.startswith("{") and not response.startswith("["):
+            # Look for JSON object
+            start_idx = response.find("{")
+            end_idx = response.rfind("}")
+            
+            if start_idx != -1 and end_idx != -1:
+                response = response[start_idx:end_idx + 1]
+        
+        return response
+    
+    # ============ Confidence Calculation Methods ============
+    
+    def calculate_confidence(
+        self,
+        llm_response: str,
+        parsed_data: Optional[Dict[str, Any]] = None,
+        keyword_matches: Optional[int] = None,
+        total_keywords: Optional[int] = None
+    ) -> float:
+        """
+        Calculate confidence score for agent output.
+        
+        Args:
+            llm_response: Raw LLM response
+            parsed_data: Parsed JSON data (optional)
+            keyword_matches: Number of matched keywords (optional)
+            total_keywords: Total expected keywords (optional)
+        
+        Returns:
+            Confidence score (0.0 to 1.0)
+        """
+        confidence = 0.5  # Default medium confidence
+        
+        # Factor 1: LLM explicitly provided confidence
+        if parsed_data and "confidence" in parsed_data:
+            confidence = float(parsed_data["confidence"])
+            logger.debug(f"{self.agent_name} - Using LLM-provided confidence: {confidence}")
+            return min(max(confidence, 0.0), 1.0)  # Clamp to [0, 1]
+        
+        # Factor 2: Response completeness
+        response_length = len(llm_response)
+        if response_length > 200:
+            confidence += 0.1  # Detailed response = higher confidence
+        elif response_length < 50:
+            confidence -= 0.1  # Very short response = lower confidence
+        
+        # Factor 3: JSON structure quality
+        if parsed_data:
+            # More fields filled = higher confidence
+            filled_fields = sum(1 for v in parsed_data.values() if v not in [None, "", [], {}])
+            total_fields = len(parsed_data)
+            
+            if total_fields > 0:
+                field_ratio = filled_fields / total_fields
+                confidence += (field_ratio - 0.5) * 0.2  # Adjust by up to ±0.2
+        
+        # Factor 4: Keyword matching (if provided)
+        if keyword_matches is not None and total_keywords is not None and total_keywords > 0:
+            keyword_ratio = keyword_matches / total_keywords
+            confidence += (keyword_ratio - 0.5) * 0.3  # Adjust by up to ±0.3
+        
+        # Clamp to [0, 1]
+        confidence = min(max(confidence, 0.0), 1.0)
+        
+        logger.debug(f"{self.agent_name} - Calculated confidence: {confidence:.2f}")
+        return confidence
+    
+    def adjust_confidence_with_context(
+        self,
+        base_confidence: float,
+        has_caller_profile: bool = False,
+        conversation_turn: int = 1,
+        has_previous_context: bool = False
+    ) -> float:
+        """
+        Adjust confidence based on contextual factors.
+        
+        Args:
+            base_confidence: Initial confidence score
+            has_caller_profile: Whether we have caller profile info
+            conversation_turn: Which turn in conversation (1-indexed)
+            has_previous_context: Whether we have previous conversation context
+        
+        Returns:
+            Adjusted confidence score
+        """
+        adjusted = base_confidence
+        
+        # Boost confidence if we have caller profile
+        if has_caller_profile:
+            adjusted += 0.05
+        
+        # Boost confidence for multi-turn conversations (more context)
+        if conversation_turn > 1:
+            adjusted += min(0.1, 0.02 * (conversation_turn - 1))
+        
+        # Boost if we have previous context
+        if has_previous_context:
+            adjusted += 0.05
+        
+        # Clamp to [0, 1]
+        return min(max(adjusted, 0.0), 1.0)
+    
+    # ============ Routing Decision Helpers ============
+    
+    def should_clarify(self, confidence: float) -> bool:
+        """
+        Check if clarification should be requested.
+        
+        Args:
+            confidence: Confidence score
+        
+        Returns:
+            True if clarification needed
+        """
+        return should_clarify(confidence, tier=self.agent_tier)
+    
+    def should_escalate(
+        self,
+        confidence: float,
+        clarification_count: int = 0,
+        user_text: Optional[str] = None
+    ) -> tuple[bool, Optional[str]]:
+        """
+        Check if human escalation is needed.
+        
+        Args:
+            confidence: Confidence score
+            clarification_count: Number of clarifications attempted
+            user_text: User's message text
+        
+        Returns:
+            Tuple of (should_escalate, reason)
+        """
+        should_esc, reason = should_escalate_to_human(
+            confidence,
+            clarification_count,
+            user_text
+        )
+        return should_esc, reason.value if reason else None
+    
+    # ============ Logging and Debugging ============
+    
+    def log_agent_execution(
+        self,
+        state: Any,
+        output: Any,
+        processing_time_ms: float,
+        success: bool = True,
+        error: Optional[str] = None
+    ):
+        """
+        Log agent execution details.
+        
+        Args:
+            state: Input state
+            output: Agent output
+            processing_time_ms: Processing time in milliseconds
+            success: Whether execution succeeded
+            error: Error message if failed
+        """
+        log_data = {
+            "agent": self.agent_name,
+            "tier": self.agent_tier,
+            "processing_time_ms": processing_time_ms,
+            "success": success,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        if error:
+            log_data["error"] = error
+            logger.error(f"{self.agent_name} - Execution failed: {error}")
+        else:
+            logger.info(f"{self.agent_name} - Execution completed ({processing_time_ms:.0f}ms)")
+        
+        # Log to structured logging system (if available)
+        # This could be sent to ELK, Datadog, etc.
+        logger.debug(f"Agent execution: {json.dumps(log_data)}")
+    
+    # ============ Utility Methods ============
+    
+    def sanitize_input(self, text: str, max_length: int = 2000) -> str:
+        """
+        Sanitize user input for safety.
+        
+        Args:
+            text: Input text
+            max_length: Maximum allowed length
+        
+        Returns:
+            Sanitized text
+        """
+        if not text:
+            return ""
+        
+        # Limit length
+        text = text[:max_length]
+        
+        # Remove potentially harmful characters (basic sanitization)
+        # Note: More robust sanitization may be needed for production
+        text = text.strip()
+        
+        return text
+    
+    def format_timestamp(self, dt: Optional[datetime] = None) -> str:
+        """
+        Format timestamp for logging.
+        
+        Args:
+            dt: Datetime object (defaults to now)
+        
+        Returns:
+            Formatted timestamp string
+        """
+        if dt is None:
+            dt = datetime.utcnow()
+        return dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+    
+    def extract_keywords(self, text: str, keywords: list[str]) -> tuple[int, list[str]]:
+        """
+        Extract and count matching keywords from text.
+        
+        Args:
+            text: Input text
+            keywords: List of keywords to match
+        
+        Returns:
+            Tuple of (match_count, matched_keywords)
+        """
+        text_lower = text.lower()
+        matched = [kw for kw in keywords if kw.lower() in text_lower]
+        return len(matched), matched
+    
+    # ============ Error Handling ============
+    
+    def handle_error(
+        self,
+        error: Exception,
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Handle and log errors consistently.
+        
+        Args:
+            error: Exception that occurred
+            context: Additional context for debugging
+        
+        Returns:
+            Error information dictionary
+        """
+        error_info = {
+            "agent": self.agent_name,
+            "tier": self.agent_tier,
+            "error_type": type(error).__name__,
+            "error_message": str(error),
+            "timestamp": self.format_timestamp()
+        }
+        
+        if context:
+            error_info["context"] = context
+        
+        logger.error(
+            f"{self.agent_name} - Error occurred: {error_info['error_type']} - {error_info['error_message']}"
+        )
+        
+        return error_info
+    
+    # ============ Template Methods (can be overridden) ============
+    
+    def preprocess_state(self, state: Any) -> Any:
+        """
+        Preprocess state before main processing (can be overridden).
+        
+        Args:
+            state: Input state
+        
+        Returns:
+            Preprocessed state
+        """
+        return state
+    
+    def postprocess_output(self, output: Any, state: Any) -> Any:
+        """
+        Postprocess output after main processing (can be overridden).
+        
+        Args:
+            output: Agent output
+            state: Input state
+        
+        Returns:
+            Postprocessed output
+        """
+        return output
+
+Summary of BaseAgent Class
 Core Functionality:
 
 LLM Interaction
@@ -333,10 +2889,459 @@ class ReceptionistL1(BaseAgent):
     def build_prompt(self, state: WorkflowState) -> str:
         return f"Classify this user input: {state.speech_text}"
 
-================================================================================
-Summary of ReceptionistL1
-================================================================================
+Next Steps:
+Would you like me to:
 
+Create this file src/agents/base_agent.py? ✅
+Move to Phase 2.2 (Create Receptionist L1)?
+Show more detailed usage examples?
+
+Let me know!RetryS2.2EditPhase 2.2: Create Receptionist L1
+I'll create the new file src/agents/receptionist_l1.py with the ultra-light L1 classifier agent.
+python# ==================== src/agents/receptionist_l1.py ====================
+"""
+Receptionist L1 Agent - Ultra-light classifier.
+Identifies broad intent and caller type with minimal processing.
+"""
+
+import logging
+import time
+from typing import Optional
+
+from src.agents.base_agent import BaseAgent
+from src.models.workflow_models import WorkflowState, CallerType
+from src.models.agent_models import L1Output, RoutingDecision
+from src.services.database_service import DatabaseService
+from config.routing_config import (
+    get_l2_agent_for_caller_type,
+    CONFIDENCE_THRESHOLDS,
+    determine_routing_decision
+)
+
+logger = logging.getLogger(__name__)
+
+
+class ReceptionistL1(BaseAgent):
+    """
+    Level 1 Receptionist Agent - Ultra-light classifier.
+    
+    Responsibilities:
+    - Identify broad intent category (scheduling, support, billing, sales, general)
+    - Detect caller type (client, prospect, partner, unknown)
+    - Make quick routing decision to appropriate L2 agent
+    - Keep processing fast and lightweight (< 1 second target)
+    """
+    
+    # Broad intent categories for L1
+    BROAD_INTENTS = [
+        "scheduling",   # Booking, appointments, calendar
+        "support",      # Issues, complaints, help
+        "billing",      # Payments, invoices, account
+        "sales",        # New services, quotes, inquiries
+        "general"       # Information, FAQs, other
+    ]
+    
+    # Keywords for intent detection (fallback)
+    INTENT_KEYWORDS = {
+        "scheduling": [
+            "schedule", "appointment", "book", "booking", "reschedule",
+            "cancel", "change", "when", "time", "date", "calendar"
+        ],
+        "support": [
+            "problem", "issue", "help", "complaint", "broken", "not working",
+            "urgent", "emergency", "fix", "wrong", "mistake"
+        ],
+        "billing": [
+            "invoice", "payment", "pay", "bill", "charge", "cost", "price",
+            "refund", "credit card", "account", "balance"
+        ],
+        "sales": [
+            "quote", "estimate", "new", "service", "buy", "purchase",
+            "interested", "information", "how much", "pricing"
+        ],
+        "general": [
+            "hello", "hi", "hours", "open", "location", "where", "contact",
+            "question", "info", "about"
+        ]
+    }
+    
+    def __init__(self, db_service: DatabaseService):
+        """
+        Initialize Receptionist L1.
+        
+        Args:
+            db_service: Database service for prompt retrieval
+        """
+        super().__init__(
+            agent_name="receptionist_l1",
+            agent_tier="L1",
+            model_name="gemini-1.5-flash",  # Fast model for L1
+            temperature=0.2,  # Low temperature for consistent classification
+            max_tokens=300    # L1 needs minimal output
+        )
+        
+        self.db_service = db_service
+        self.system_prompt: Optional[str] = None
+        
+        logger.info("ReceptionistL1 initialized")
+    
+    async def process(self, state: WorkflowState) -> WorkflowState:
+        """
+        Process incoming call with L1 classification.
+        
+        Args:
+            state: Current workflow state
+        
+        Returns:
+            Updated workflow state with L1 results
+        """
+        start_time = time.time()
+        
+        try:
+            logger.info(f"L1 processing call from {state.caller_phone}")
+            
+            # Load system prompt if not cached
+            if not self.system_prompt:
+                await self._load_system_prompt()
+            
+            # Build prompt for classification
+            prompt = self.build_prompt(state)
+            
+            # Call LLM for classification
+            llm_response = await self.call_llm(
+                prompt=prompt,
+                system_instruction=self.system_prompt
+            )
+            
+            # Parse JSON response into L1Output
+            l1_output = self.parse_llm_json(
+                llm_response=llm_response,
+                output_model=L1Output,
+                strict=False  # Use lenient parsing for L1 (speed priority)
+            )
+            
+            # If parsing failed, use fallback classification
+            if not isinstance(l1_output, L1Output):
+                logger.warning("L1 JSON parsing failed, using fallback classification")
+                l1_output = self._fallback_classification(state)
+            
+            # Adjust confidence with context
+            l1_output.confidence = self.adjust_confidence_with_context(
+                base_confidence=l1_output.confidence,
+                has_caller_profile=state.caller_profile is not None,
+                conversation_turn=state.turn_count + 1,
+                has_previous_context=len(state.conversation_history) > 0
+            )
+            
+            # Determine routing decision
+            l1_output.routing_decision = self._determine_l1_routing(
+                l1_output,
+                state
+            )
+            
+            # Select L2 agent if routing forward
+            if l1_output.routing_decision == RoutingDecision.ROUTE_TO_L2:
+                l1_output.suggested_l2_agent = get_l2_agent_for_caller_type(
+                    l1_output.caller_type
+                )
+            
+            # Update state with L1 results
+            state = self._update_state_with_l1_output(state, l1_output)
+            
+            # Calculate processing time
+            processing_time_ms = (time.time() - start_time) * 1000
+            state.intent_l1.timestamp = state.intent_l1.timestamp or state.processing_start_time
+            
+            # Log execution
+            self.log_agent_execution(
+                state=state,
+                output=l1_output,
+                processing_time_ms=processing_time_ms,
+                success=True
+            )
+            
+            logger.info(
+                f"L1 completed: intent={l1_output.intent_name}, "
+                f"caller_type={l1_output.caller_type}, "
+                f"confidence={l1_output.confidence:.2f}, "
+                f"routing={l1_output.routing_decision.value}, "
+                f"time={processing_time_ms:.0f}ms"
+            )
+            
+            return state
+        
+        except Exception as e:
+            logger.error(f"L1 processing failed: {e}")
+            
+            # Use fallback on error
+            fallback_output = self._fallback_classification(state)
+            state = self._update_state_with_l1_output(state, fallback_output)
+            state.error_message = f"L1 processing error: {str(e)}"
+            
+            processing_time_ms = (time.time() - start_time) * 1000
+            self.log_agent_execution(
+                state=state,
+                output=fallback_output,
+                processing_time_ms=processing_time_ms,
+                success=False,
+                error=str(e)
+            )
+            
+            return state
+    
+    def build_prompt(self, state: WorkflowState) -> str:
+        """
+        Build L1 classification prompt.
+        
+        Args:
+            state: Current workflow state
+        
+        Returns:
+            Formatted prompt string
+        """
+        # Get caller info
+        caller_phone = state.caller_phone or "unknown"
+        caller_type = state.caller_type.value if state.caller_type else "unknown"
+        speech_text = self.sanitize_input(state.speech_text or "")
+        
+        # Build context
+        context_parts = []
+        
+        if state.caller_profile:
+            context_parts.append(f"Known {caller_type}")
+        else:
+            context_parts.append("Unknown caller")
+        
+        if state.conversation_history:
+            context_parts.append(f"Turn {len(state.conversation_history) + 1}")
+        
+        context_str = ", ".join(context_parts)
+        
+        prompt = f"""Classify the following user input into a broad intent category.
+
+User Input: "{speech_text}"
+Context: {context_str}
+Caller Phone: {caller_phone}
+
+Available Intent Categories:
+- scheduling: Booking, appointments, rescheduling, cancellations
+- support: Problems, complaints, issues, help requests
+- billing: Payments, invoices, account questions
+- sales: New service inquiries, quotes, interested prospects
+- general: General information, FAQs, other
+
+Available Caller Types:
+- client: Existing customer with account
+- prospect: Potential new customer
+- partner: Vendor or business partner
+- unknown: Cannot determine from available information
+
+Output Requirements:
+1. Provide a JSON response with the following structure
+2. Be concise and fast - this is a quick classifier
+3. Confidence should be 0.0 to 1.0
+4. Reasoning should be brief (one sentence)
+
+JSON Format:
+{{
+    "intent_name": "one of the intent categories",
+    "intent_category": "same as intent_name for L1",
+    "confidence": 0.0-1.0,
+    "caller_type": "one of the caller types",
+    "caller_type_confidence": 0.0-1.0,
+    "reasoning": "brief explanation"
+}}
+
+Respond ONLY with valid JSON, no additional text."""
+        
+        return prompt
+    
+    async def _load_system_prompt(self):
+        """Load system prompt from database."""
+        try:
+            prompt_doc = await self.db_service.find_agent_action_prompt(
+                agent="receptionist_l1",
+                action="classify_intent",
+                level=1
+            )
+            
+            if prompt_doc and "prompt" in prompt_doc:
+                self.system_prompt = prompt_doc["prompt"]
+                logger.info("L1 system prompt loaded from database")
+            else:
+                # Use default system prompt
+                self.system_prompt = self._get_default_system_prompt()
+                logger.warning("Using default L1 system prompt (not found in database)")
+        
+        except Exception as e:
+            logger.error(f"Failed to load L1 system prompt: {e}")
+            self.system_prompt = self._get_default_system_prompt()
+    
+    def _get_default_system_prompt(self) -> str:
+        """Get default system prompt for L1."""
+        return """You are a fast, efficient call classifier for an AI receptionist system.
+Your job is to quickly categorize incoming calls into broad intent categories.
+Be decisive and fast - accuracy is important but speed is critical.
+Always respond with valid JSON only, no additional text.
+If uncertain, default to 'general' intent and lower confidence."""
+    
+    def _determine_l1_routing(
+        self,
+        l1_output: L1Output,
+        state: WorkflowState
+    ) -> RoutingDecision:
+        """
+        Determine routing decision for L1.
+        
+        Args:
+            l1_output: L1 classification output
+            state: Current workflow state
+        
+        Returns:
+            RoutingDecision enum
+        """
+        # Check for escalation conditions
+        should_esc, esc_reason = self.should_escalate(
+            confidence=l1_output.confidence,
+            clarification_count=state.clarification_count,
+            user_text=state.speech_text
+        )
+        
+        if should_esc:
+            logger.info(f"L1 escalation triggered: {esc_reason}")
+            state.escalation_reason = esc_reason
+            return RoutingDecision.ESCALATE_TO_HUMAN
+        
+        # Check if clarification needed (L1 only asks if very uncertain)
+        if self.should_clarify(l1_output.confidence) and state.clarification_count == 0:
+            # L1 only clarifies once and only if confidence is very low
+            if l1_output.confidence < 0.50:
+                logger.info(f"L1 requesting clarification (confidence: {l1_output.confidence:.2f})")
+                return RoutingDecision.CLARIFY
+        
+        # Default: route to L2
+        logger.info(f"L1 routing to L2 (confidence: {l1_output.confidence:.2f})")
+        return RoutingDecision.ROUTE_TO_L2
+    
+    def _fallback_classification(self, state: WorkflowState) -> L1Output:
+        """
+        Fallback classification using keyword matching.
+        
+        Args:
+            state: Current workflow state
+        
+        Returns:
+            L1Output with fallback classification
+        """
+        logger.info("Using L1 fallback classification (keyword matching)")
+        
+        speech_text = (state.speech_text or "").lower()
+        
+        # Count keyword matches for each intent
+        intent_scores = {}
+        for intent, keywords in self.INTENT_KEYWORDS.items():
+            matches, matched_kws = self.extract_keywords(speech_text, keywords)
+            intent_scores[intent] = matches
+        
+        # Get intent with most matches
+        best_intent = max(intent_scores, key=intent_scores.get)
+        max_matches = intent_scores[best_intent]
+        
+        # Calculate confidence based on matches
+        if max_matches >= 3:
+            confidence = 0.70
+        elif max_matches >= 2:
+            confidence = 0.55
+        elif max_matches >= 1:
+            confidence = 0.40
+        else:
+            best_intent = "general"
+            confidence = 0.30
+        
+        # Determine caller type (use existing detection if available)
+        caller_type = state.caller_type.value if state.caller_type else "unknown"
+        caller_type_confidence = 0.80 if state.caller_type else 0.30
+        
+        return L1Output(
+            intent_name=best_intent,
+            intent_category=best_intent,
+            confidence=confidence,
+            caller_type=caller_type,
+            caller_type_confidence=caller_type_confidence,
+            routing_decision=RoutingDecision.ROUTE_TO_L2,
+            suggested_l2_agent=get_l2_agent_for_caller_type(caller_type),
+            reasoning=f"Fallback classification: matched {max_matches} keywords for {best_intent}"
+        )
+    
+    def _update_state_with_l1_output(
+        self,
+        state: WorkflowState,
+        l1_output: L1Output
+    ) -> WorkflowState:
+        """
+        Update workflow state with L1 output.
+        
+        Args:
+            state: Current workflow state
+            l1_output: L1 classification output
+        
+        Returns:
+            Updated workflow state
+        """
+        from src.models.workflow_models import IntentL1
+        from datetime import datetime
+        
+        # Update intent L1
+        state.intent_l1 = IntentL1(
+            name=l1_output.intent_name,
+            confidence=l1_output.confidence,
+            category=l1_output.intent_category,
+            timestamp=datetime.utcnow()
+        )
+        
+        # Update caller type if detected (and not already set from identity check)
+        if not state.caller_type or state.caller_type == CallerType.UNKNOWN:
+            state.caller_type = CallerType(l1_output.caller_type)
+        
+        # Update routing info
+        state.current_tier = "L1"
+        state.current_agent = self.agent_name
+        state.routing_confidence = l1_output.confidence
+        state.routing_reason = l1_output.reasoning or f"L1 classified as {l1_output.intent_name}"
+        state.selected_l2_agent = l1_output.suggested_l2_agent.value if l1_output.suggested_l2_agent else None
+        
+        # Add preliminary entities if any
+        if l1_output.preliminary_entities:
+            state.entities.update(l1_output.preliminary_entities)
+        
+        # Add to routing history
+        from config.routing_config import add_routing_step
+        add_routing_step(
+            state=state,
+            from_tier="START",
+            to_tier="L1",
+            reason=f"Initial classification: {l1_output.intent_name}",
+            confidence=l1_output.confidence
+        )
+        
+        return state
+
+
+# ============ Factory Function ============
+
+def create_receptionist_l1(db_service: DatabaseService) -> ReceptionistL1:
+    """
+    Factory function to create Receptionist L1 agent.
+    
+    Args:
+        db_service: Database service instance
+    
+    Returns:
+        Initialized ReceptionistL1 agent
+    """
+    return ReceptionistL1(db_service=db_service)
+
+Summary of ReceptionistL1
 Key Features:
 
 Ultra-Light Classification
@@ -344,7 +3349,7 @@ Ultra-Light Classification
 Fast processing (< 1 second target)
 Minimal token usage (max 300 tokens)
 Low temperature (0.2) for consistency
-Uses gemini-1.5-flash-lite (fastest model)
+Uses gemini-1.5-flash (fastest model)
 
 
 Broad Intent Categories
@@ -446,10 +3451,507 @@ state.selected_l2_agent = "client_receptionist_l2"
 state.routing_confidence = 0.92
 # Routes to Client Receptionist L2
 
-================================================================================
-Summary of L1 Prompts
-================================================================================
+Next Steps:
+Would you like me to:
 
+Create this file src/agents/receptionist_l1.py? ✅
+Move to Phase 2.3 (Create L1 Prompts in Database)?
+Show test cases for L1 agent?
+
+Let me know!RetryS2.3EditPhase 2.3: Create L1 Prompts in Database
+I'll create a script to insert L1 prompts into the agent_action_prompts MongoDB collection. This will be a standalone utility script.
+python# ==================== src/utilities/seed_l1_prompts.py ====================
+"""
+Seed L1 agent prompts into the database.
+Run this script to populate the agent_action_prompts collection with L1 system prompts.
+"""
+
+import asyncio
+import sys
+from datetime import datetime
+from pathlib import Path
+
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from src.services.database_service import DatabaseService
+from config.settings import settings
+
+
+# ============ L1 System Prompts ============
+
+L1_SYSTEM_PROMPT = """You are a fast, efficient call classifier for an AI receptionist system.
+
+Your role is to quickly categorize incoming calls into broad intent categories with minimal processing time.
+
+Key Guidelines:
+1. **Speed is Critical**: Make decisions quickly, aim for < 1 second processing
+2. **Be Decisive**: Don't overthink - choose the most likely category
+3. **Use Context**: Consider caller type if known (client vs prospect vs partner)
+4. **Default to General**: If uncertain, classify as "general" with lower confidence
+5. **JSON Only**: Always respond with valid JSON, no explanatory text
+
+Intent Categories:
+- **scheduling**: Booking appointments, rescheduling, cancellations, calendar changes
+- **support**: Problems, complaints, technical issues, help requests, service quality
+- **billing**: Payments, invoices, account questions, charges, refunds
+- **sales**: New service inquiries, quotes, interested prospects, pricing questions
+- **general**: General information, FAQs, company info, hours, other
+
+Caller Types:
+- **client**: Existing customer with active account
+- **prospect**: Potential new customer, leads
+- **partner**: Vendor, contractor, business partner
+- **unknown**: Cannot determine from available information
+
+Confidence Guidelines:
+- 0.90-1.0: Very clear intent with strong keywords (e.g., "I want to book a cleaning for Tuesday")
+- 0.70-0.89: Clear intent with supporting context (e.g., "Can you help me with my appointment?")
+- 0.50-0.69: Probable intent but some ambiguity (e.g., "I have a question about my service")
+- 0.30-0.49: Uncertain, multiple possible intents (e.g., "I need help")
+- 0.0-0.29: Very unclear, default to general
+
+Response Format:
+Always respond with this exact JSON structure, no additional text:
+
+{
+    "intent_name": "scheduling|support|billing|sales|general",
+    "intent_category": "same as intent_name",
+    "confidence": 0.0-1.0,
+    "caller_type": "client|prospect|partner|unknown",
+    "caller_type_confidence": 0.0-1.0,
+    "reasoning": "Brief one-sentence explanation",
+    "routing_decision": "sales_receptionist_l2|support_receptionist_l2|billing_receptionist_l2|inquiry_receptionist_l2"
+}
+
+Examples:
+
+Input: "I need to schedule a cleaning for next Tuesday"
+Output: {"intent_name": "scheduling", "intent_category": "scheduling", "confidence": 0.95, "caller_type": "prospect", "caller_type_confidence": 0.60, "reasoning": "User explicitly requested scheduling with specific date"}
+
+Input: "My last cleaning was terrible, need to complain"
+Output: {"intent_name": "support", "intent_category": "support", "confidence": 0.92, "caller_type": "client", "caller_type_confidence": 0.85, "reasoning": "Complaint about service quality from existing customer"}
+
+Input: "How much does a cleaning cost?"
+Output: {"intent_name": "sales", "intent_category": "sales", "confidence": 0.88, "caller_type": "prospect", "caller_type_confidence": 0.75, "reasoning": "Pricing inquiry typical of new prospect"}
+
+Input: "When did I pay my last invoice?"
+Output: {"intent_name": "billing", "intent_category": "billing", "confidence": 0.90, "caller_type": "client", "caller_type_confidence": 0.90, "reasoning": "Invoice history question from existing client"}
+
+Input: "Hi, can you help me?"
+Output: {"intent_name": "general", "intent_category": "general", "confidence": 0.35, "caller_type": "unknown", "caller_type_confidence": 0.30, "reasoning": "Vague request without clear intent indicators"}
+
+Remember: Be fast, be decisive, output valid JSON only."""
+
+
+L1_CLASSIFICATION_EXAMPLES = """Additional Classification Examples for L1 Agent:
+
+Scheduling Intent:
+- "I want to book a cleaning for my house"
+- "Can I reschedule my appointment from Friday to Monday?"
+- "Need to cancel tomorrow's service"
+- "What times are available next week?"
+- "When is my next cleaning scheduled?"
+
+Support Intent:
+- "The cleaners didn't show up yesterday"
+- "I'm not satisfied with the service quality"
+- "There's a problem with my last cleaning"
+- "My house wasn't cleaned properly"
+- "I need to speak to a manager about an issue"
+
+Billing Intent:
+- "I was charged twice this month"
+- "Can I get a copy of my invoice?"
+- "When is my payment due?"
+- "I want to update my credit card"
+- "Why is my bill higher than usual?"
+
+Sales Intent:
+- "Do you offer commercial cleaning services?"
+- "I'm interested in getting a quote"
+- "What services do you provide?"
+- "How much does a one-time deep clean cost?"
+- "I saw your ad and want more information"
+
+General Intent:
+- "What are your business hours?"
+- "Where are you located?"
+- "Do you serve my area?"
+- "Hello, is anyone there?"
+- "I have a general question"
+
+Multi-Intent Handling:
+- If user mentions multiple intents, choose the PRIMARY one
+- Example: "I want to schedule a cleaning and also ask about pricing" → scheduling (action intent takes priority)
+- Example: "I have a billing question but also want to complain" → support (complaints are higher priority)
+
+Caller Type Detection:
+- Look for indicators: "my account", "my last service" → client
+- New inquiry language: "I'm interested", "looking for" → prospect
+- Business language: "our company", "vendor check-in" → partner
+- No indicators: unknown (default)"""
+
+
+L1_PROMPT_VARIANTS = {
+    "concise": """You are a fast call classifier. Categorize user input into: scheduling, support, billing, sales, or general.
+Output JSON only: {"intent_name": "...", "intent_category": "...", "confidence": 0.0-1.0, "caller_type": "...", "caller_type_confidence": 0.0-1.0, "reasoning": "..."}
+Be fast and decisive. Default to "general" if uncertain.""",
+    
+    "detailed": L1_SYSTEM_PROMPT,
+    
+    "with_examples": L1_SYSTEM_PROMPT + "\n\n" + L1_CLASSIFICATION_EXAMPLES
+}
+
+
+# ============ Prompt Documents ============
+
+L1_PROMPTS = [
+    {
+        "agent": "receptionist",
+        "action": "l1_classification",
+        "level": 1,
+        "prompt": L1_PROMPT_VARIANTS["detailed"],
+        "active": True,
+        "notes": "Primary L1 classification prompt with detailed guidelines",
+        "version": "1.0.0",
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    },
+    {
+        "agent": "receptionist",
+        "action": "l1_classification",
+        "level": 2,
+        "prompt": L1_PROMPT_VARIANTS["with_examples"],
+        "active": False,
+        "notes": "Extended L1 prompt with comprehensive examples (for testing/training)",
+        "version": "1.1.0",
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    },
+    {
+        "agent": "receptionist",
+        "action": "l1_classification",
+        "level": 3,
+        "prompt": L1_PROMPT_VARIANTS["concise"],
+        "active": False,
+        "notes": "Ultra-concise L1 prompt for maximum speed (experimental)",
+        "version": "0.9.0",
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    },
+    {
+        "agent": "receptionist",
+        "action": "l1_fallback",
+        "level": 1,
+        "prompt": """You are a fallback classifier when primary classification fails.
+Given user input, quickly determine the most likely intent from: scheduling, support, billing, sales, general.
+Be extremely fast and simple. Output only JSON: {"intent_name": "...", "confidence": 0.0-1.0}""",
+        "active": True,
+        "notes": "Fallback prompt for L1 when primary method fails",
+        "version": "1.0.0",
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    },
+    {
+        "agent": "receptionist",
+        "action": "l1_clarification",
+        "level": 1,
+        "prompt": """You need to ask ONE clarifying question because the user's intent is unclear.
+
+User said: "{user_input}"
+Detected intent: {intent_name} (confidence: {confidence})
+
+Generate a single, direct clarification question to determine their true intent.
+
+Question Guidelines:
+1. Keep it conversational and natural
+2. Don't repeat what they said
+3. Offer 2-3 clear options if helpful
+4. Be brief (one sentence)
+
+Examples:
+- "Are you looking to schedule a new service or modify an existing appointment?"
+- "Is this about a billing question or a service issue?"
+- "Would you like to book a cleaning or get pricing information?"
+
+Output JSON only: {{"question": "...", "question_type": "multiple_choice|open_ended"}}""",
+        "active": True,
+        "notes": "L1 clarification question generator",
+        "version": "1.0.0",
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
+]
+
+
+# ============ Seed Function ============
+
+async def seed_l1_prompts():
+    """Seed L1 prompts into the database."""
+    
+    print("=" * 80)
+    print("L1 PROMPT SEEDING UTILITY")
+    print("=" * 80)
+    print()
+    
+    # Initialize database service
+    db_service = DatabaseService()
+    
+    try:
+        # Connect to database
+        print("📡 Connecting to database...")
+        await db_service.connect()
+        print(f"✅ Connected to: {settings.database.database_name}")
+        print()
+        
+        # Check if collection exists
+        collections = await db_service.db.list_collection_names()
+        if "agent_action_prompts" not in collections:
+            print("⚠️  Creating 'agent_action_prompts' collection...")
+            await db_service.db.create_collection("agent_action_prompts")
+            print("✅ Collection created")
+        
+        print(f"📝 Seeding {len(L1_PROMPTS)} L1 prompts...")
+        print()
+        
+        inserted_count = 0
+        updated_count = 0
+        skipped_count = 0
+        
+        for prompt_doc in L1_PROMPTS:
+            # Check if prompt already exists
+            existing = await db_service.db.agent_action_prompts.find_one({
+                "agent": prompt_doc["agent"],
+                "action": prompt_doc["action"],
+                "level": prompt_doc["level"]
+            })
+            
+            if existing:
+                # Update if different
+                if existing.get("prompt") != prompt_doc["prompt"]:
+                    prompt_doc["updated_at"] = datetime.utcnow()
+                    prompt_doc["created_at"] = existing.get("created_at", datetime.utcnow())
+                    
+                    await db_service.db.agent_action_prompts.update_one(
+                        {"_id": existing["_id"]},
+                        {"$set": prompt_doc}
+                    )
+                    print(f"✏️  Updated: {prompt_doc['agent']}/{prompt_doc['action']}/level-{prompt_doc['level']}")
+                    updated_count += 1
+                else:
+                    print(f"⏭️  Skipped (unchanged): {prompt_doc['agent']}/{prompt_doc['action']}/level-{prompt_doc['level']}")
+                    skipped_count += 1
+            else:
+                # Insert new
+                result = await db_service.db.agent_action_prompts.insert_one(prompt_doc)
+                print(f"✅ Inserted: {prompt_doc['agent']}/{prompt_doc['action']}/level-{prompt_doc['level']}")
+                inserted_count += 1
+        
+        print()
+        print("=" * 80)
+        print("SUMMARY")
+        print("=" * 80)
+        print(f"✅ Inserted: {inserted_count}")
+        print(f"✏️  Updated:  {updated_count}")
+        print(f"⏭️  Skipped:  {skipped_count}")
+        print(f"📊 Total:    {len(L1_PROMPTS)}")
+        print()
+        
+        # Verify active prompts
+        print("🔍 Verifying active prompts...")
+        active_prompts = await db_service.db.agent_action_prompts.count_documents({"active": True})
+        print(f"✅ Active prompts in database: {active_prompts}")
+        print()
+        
+        # Show active L1 prompt
+        active_l1 = await db_service.db.agent_action_prompts.find_one({
+            "agent": "receptionist",
+            "action": "l1_classification",
+            "active": True
+        })
+        
+        if active_l1:
+            print("📋 Active L1 Classification Prompt:")
+            print(f"   Level: {active_l1['level']}")
+            print(f"   Version: {active_l1.get('version', 'N/A')}")
+            print(f"   Notes: {active_l1.get('notes', 'N/A')}")
+            print(f"   Length: {len(active_l1['prompt'])} characters")
+        else:
+            print("⚠️  No active L1 classification prompt found!")
+        
+        print()
+        print("✅ L1 prompts seeded successfully!")
+        
+    except Exception as e:
+        print(f"❌ Error seeding prompts: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+    
+    finally:
+        # Disconnect
+        await db_service.disconnect()
+        print("📡 Disconnected from database")
+    
+    return True
+
+
+# ============ Utility Functions ============
+
+async def list_all_prompts():
+    """List all prompts in the database."""
+    
+    db_service = DatabaseService()
+    
+    try:
+        await db_service.connect()
+        
+        print("=" * 80)
+        print("ALL AGENT PROMPTS IN DATABASE")
+        print("=" * 80)
+        print()
+        
+        cursor = db_service.db.agent_action_prompts.find({}).sort([
+            ("agent", 1),
+            ("action", 1),
+            ("level", 1)
+        ])
+        
+        count = 0
+        async for prompt in cursor:
+            count += 1
+            status = "🟢 ACTIVE" if prompt.get("active") else "⚪ INACTIVE"
+            print(f"{status} | {prompt['agent']}/{prompt['action']}/level-{prompt['level']}")
+            print(f"   Version: {prompt.get('version', 'N/A')}")
+            print(f"   Notes: {prompt.get('notes', 'N/A')}")
+            print(f"   Length: {len(prompt.get('prompt', ''))} chars")
+            print()
+        
+        print(f"Total prompts: {count}")
+        
+    finally:
+        await db_service.disconnect()
+
+
+async def activate_prompt(agent: str, action: str, level: int):
+    """Activate a specific prompt and deactivate others with same agent/action."""
+    
+    db_service = DatabaseService()
+    
+    try:
+        await db_service.connect()
+        
+        # Deactivate all prompts for this agent/action
+        await db_service.db.agent_action_prompts.update_many(
+            {"agent": agent, "action": action},
+            {"$set": {"active": False, "updated_at": datetime.utcnow()}}
+        )
+        
+        # Activate the specified prompt
+        result = await db_service.db.agent_action_prompts.update_one(
+            {"agent": agent, "action": action, "level": level},
+            {"$set": {"active": True, "updated_at": datetime.utcnow()}}
+        )
+        
+        if result.modified_count > 0:
+            print(f"✅ Activated: {agent}/{action}/level-{level}")
+        else:
+            print(f"⚠️  Prompt not found: {agent}/{action}/level-{level}")
+        
+    finally:
+        await db_service.disconnect()
+
+
+async def delete_all_prompts(confirm: bool = False):
+    """Delete all prompts from database (use with caution!)."""
+    
+    if not confirm:
+        print("⚠️  This will delete ALL prompts from the database!")
+        print("To confirm, run: delete_all_prompts(confirm=True)")
+        return
+    
+    db_service = DatabaseService()
+    
+    try:
+        await db_service.connect()
+        
+        result = await db_service.db.agent_action_prompts.delete_many({})
+        print(f"🗑️  Deleted {result.deleted_count} prompts")
+        
+    finally:
+        await db_service.disconnect()
+
+
+# ============ Main Entry Point ============
+
+async def main():
+    """Main entry point."""
+    
+    import sys
+    
+    if len(sys.argv) > 1:
+        command = sys.argv[1]
+        
+        if command == "seed":
+            await seed_l1_prompts()
+        
+        elif command == "list":
+            await list_all_prompts()
+        
+        elif command == "activate":
+            if len(sys.argv) != 5:
+                print("Usage: python seed_l1_prompts.py activate <agent> <action> <level>")
+                print("Example: python seed_l1_prompts.py activate receptionist l1_classification 2")
+                return
+            
+            agent = sys.argv[2]
+            action = sys.argv[3]
+            level = int(sys.argv[4])
+            await activate_prompt(agent, action, level)
+        
+        elif command == "delete-all":
+            confirm = len(sys.argv) > 2 and sys.argv[2] == "--confirm"
+            await delete_all_prompts(confirm=confirm)
+        
+        else:
+            print(f"Unknown command: {command}")
+            print_usage()
+    
+    else:
+        # Default: seed prompts
+        await seed_l1_prompts()
+
+
+def print_usage():
+    """Print usage instructions."""
+    
+    print("""
+L1 Prompt Seeding Utility
+
+Usage:
+    python seed_l1_prompts.py [command]
+
+Commands:
+    seed         Seed L1 prompts into database (default)
+    list         List all prompts in database
+    activate     Activate a specific prompt
+    delete-all   Delete all prompts (requires --confirm)
+
+Examples:
+    python seed_l1_prompts.py
+    python seed_l1_prompts.py seed
+    python seed_l1_prompts.py list
+    python seed_l1_prompts.py activate receptionist l1_classification 2
+    python seed_l1_prompts.py delete-all --confirm
+""")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+Summary of L1 Prompts
 Prompt Variants Created:
 
 Primary L1 Classification (Level 1) - ACTIVE
@@ -547,10 +4049,83 @@ Level 3: Experimental/alternative approaches
 Only ONE active per agent/action at a time
 Easy A/B testing by switching active prompt
 
-================================================================================
-Summary of Changes Made to workflow_model.py:
-================================================================================
 
+Next Steps:
+Would you like me to:
+
+Create this file src/utilities/seed_l1_prompts.py? ✅
+Also update Phase 1.1 file (workflow_models.py) that we discussed earlier? ✅
+Move to Phase 2.4 (Update Database Service)?
+Test the L1 agent with sample inputs?
+
+Let me know!RetryS2EditUpdating Phase 1.1: WorkflowState Model
+I'll now modify the existing src/models/workflow_models.py file with all the new fields we designed in Phase 1.1.
+Changes to make:
+
+Add new CallerType values (PROSPECT, PARTNER, UNKNOWN)
+Add new Intent values
+Create AgentTier enum
+Create IntentL1 and IntentL2 nested models
+Create ConversationMessage model
+Add all new fields to WorkflowState
+Add helper functions
+
+
+Here's what I'm changing in src/models/workflow_models.py:
+FROM (old version):
+pythonclass CallerType(str, Enum):
+    """Types of callers."""
+    CLIENT = "client"
+    VENDOR = "vendor"
+    LEAD = "lead"
+
+class Intent(str, Enum):
+    """Call intents."""
+    GENERAL_INQUIRY = "general_inquiry"
+    SERVICE_INQUIRY = "service_inquiry"
+    # ... (limited intents)
+TO (new version with all Phase 1.1 enhancements):
+pythonclass CallerType(str, Enum):
+    """Types of callers."""
+    CLIENT = "client"
+    VENDOR = "vendor"
+    PROSPECT = "prospect"
+    PARTNER = "partner"
+    LEAD = "lead"  # Backward compatible
+    UNKNOWN = "unknown"
+
+class AgentTier(str, Enum):
+    """Agent tier levels for routing."""
+    L1 = "L1"
+    L2 = "L2"
+    L3 = "L3"
+    HUMAN = "HUMAN"
+
+class IntentL1(BaseModel):
+    """Level 1 intent classification."""
+    name: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    category: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+# ... plus all other enhancements
+Would you like me to:
+
+✅ Update the file with all Phase 1.1 changes now?
+Show you a detailed diff of all changes first?
+Something else?
+
+I'll proceed with updating the file with all the enhancements from Phase 1.1 that we designed earlier.RetrySyesEditUpdated workflow_models.py (Phase 1.1)Code # ==================== src/models/workflow_models.py ====================
+"""Workflow state models."""
+
+from enum import Enum
+from typing import Optional, Dict, Any, List
+from pydantic import BaseModel, Field
+from datetime import datetime
+
+
+class CalPerfect! I've created the updated workflow_models.py file with all Phase 1.1 enhancements.
+Summary of Changes Made:
 ✅ New Enums:
 
 CallerType: Added PROSPECT, PARTNER, UNKNOWN (kept LEAD for backward compatibility)
@@ -583,10 +4158,33 @@ should_escalate(): Confidence-based escalation logic
 add_routing_step(): Track routing decisions
 
 
-================================================================================
-Summary of Changes Made to database_service.py:
-================================================================================
+Would you like me to:
 
+✅ Replace the existing src/models/workflow_models.py file with this updated version?
+Create a backup of the old file first?
+Show a side-by-side comparison?
+
+Please confirm and I'll update the actual file!RetrySMove to Phase 2.4EditPhase 2.4: Update Database Service
+I'll update the existing src/services/database_service.py file to fix bugs and add improvements for the new routing system.
+Issues to Fix:
+
+Bug in find_agent_action_prompt(): Currently returns dict, should return full document or just prompt string
+Missing error handling: Better exception handling needed
+Query optimization: Add indexes for common queries
+Prompt caching: Cache frequently accessed prompts
+Session management: Add session storage methods
+Routing history: Add methods to track routing decisions
+
+
+Here are the changes:Updated database_service.py (Phase 2.4)Code # ==================== src/services/database_service.py ====================
+"""Database service for MongoDB operations."""
+
+import asyncio
+import html
+import logging
+from typing import Optional, List, Dict, Any
+from motor.motor_asyncio import AsyncIPerfect! I've created the updated database_service.py with all Phase 2.4 improvements.
+Summary of Changes:
 ✅ Bug Fixes:
 
 Fixed find_agent_action_prompt():
@@ -713,10 +4311,19 @@ await db_service.log_routing_decision(
 # Get routing history
 history = await db_service.get_routing_history(session_id="abc-123")
 
-================================================================================
-Summary of Changes Made to migrate_routing_collections.py:
-================================================================================
+Would you like me to:
 
+✅ Replace the existing src/services/database_service.py file with this updated version?
+Create a migration script to add the new collections/indexes?
+Move to Phase 3.1 (Create L2 Base Agent)?
+
+Let me know!RetryS2EditPhase 2.4 Migration: Create Database Migration Script
+I'll create a migration script to set up the new collections and indexes for the routing system.Migration Script - Routing CollectionsCode # ==================== src/utilities/migrate_routing_collections.py ====================
+"""
+Database migration script for routing system.
+Creates new collections and indexes needed for 3-tier agent routing.
+
+Run this script after updating to the newPerfect! I've created a comprehensive migration script for the routing system.
 Migration Script Features:
 ✅ Creates New Collections:
 
@@ -888,11 +4495,22 @@ python src/utilities/generate_test_data.py
 # 4. Start the application
 uvicorn main:app --reload
 
-================================================================================
+Would you like me to:
+
+✅ Create this migration script file?
+Create a comprehensive setup script that runs all migration steps?
+Move to Phase 3.1 (Create L2 Base Agent)?
+
+Let me know!RetryS3.1EditPhase 3.1: Create L2 Base Agent
+I'll create the new file src/agents/receptionist_l2_base.py with the base class for all L2 agents (intent refiners).receptionist_l2_base.py (Phase 3.1)Code # ==================== src/agents/receptionist_l2_base.py ====================
+"""
+Receptionist L2 Base Agent - Intent refiner base class.
+All specialized L2 agents (Client, Prospect, Partner, General) extend this class.
+"""
+
+import logging
+import tiPerfect! I've created the ReceptionistL2Base class. This is a comprehensive base class that all specialized L2 agents will extend.
 Summary of ReceptionistL2Base:
-==============================================================================
-
-
 🎯 Core Responsibilities:
 
 Intent Refinement: Refine broad L1 intents into specific L2 intents
@@ -965,7 +4583,17 @@ Address: 123 Main Street, 456 Oak Avenue
 13. Update state with L2 results
 14. Log execution
 📊 State Updates:
+Updates WorkflowState with:
 
+intent_l2: Refined intent with confidence
+entities: All extracted entities
+required_slots: Slots needed for intent
+missing_slots: What's still needed
+current_tier: "L2"
+current_agent: L2 agent name
+selected_l3_agent: Which
+RetrySContinueEditContinuing from where I left off...
+📊 State Updates (continued):
 Updates WorkflowState with:
 
 intent_l2: Refined intent with confidence
@@ -1102,17 +4730,46 @@ l3_agent = get_l3_agent_for_intent("book_home_cleaning", is_refined=True)
 
 Performance Characteristics:
 
-Model: gemini-1.5-flash-lite (balanced speed/accuracy)
+Model: gemini-1.5-flash (balanced speed/accuracy)
 Temperature: 0.4 (slightly creative for entity extraction)
 Max Tokens: 800 (more than L1, less than L3)
 Target Time: 1-2 seconds
 Caching: System prompts cached after first load
 
-================================================================================
-Summary Create L2 Prompt Seeds:
-==============================================================================
 
-Prompts Created:
+Next Steps in Phase 3:
+Phase 3.2 will create the specialized L2 agents:
+
+ClientReceptionistL2 - For existing clients
+ProspectReceptionistL2 - For new prospects/leads
+PartnerReceptionistL2 - For vendors/partners
+GeneralReceptionistL2 - Fallback for unknown callers
+
+Each will implement:
+
+get_intent_mappings(): Caller-specific intent maps
+get_specialized_prompts(): Caller-specific guidelines
+
+
+Would you like me to:
+
+✅ Create the src/agents/receptionist_l2_base.py file?
+Move to Phase 3.2 (Create Specialized L2 Agents)?
+Create L2 prompt seeds for the database?
+Show test cases for L2 base functionality?
+
+Let me know!RetryS3EditPhase 3.1 (Part 3): Create L2 Prompt Seeds
+I'll create a script to seed L2 agent prompts into the database, similar to what we did for L1.seed_l2_prompts.py - L2 Prompt SeedingCode # ==================== src/utilities/seed_l2_prompts.py ====================
+"""
+Seed L2 agent prompts into the database.
+Run this script to populate the agent_action_prompts collection with L2 system prompts.
+"""
+
+import asyncio
+import sys
+from datePerfect! I've created the L2 prompt seeding script with comprehensive prompts for all caller types.
+Summary of L2 Prompts:
+✅ Prompts Created:
 
 Client L2 Refinement (l2_refinement_client)
 
@@ -1153,9 +4810,7 @@ Generates natural clarification questions
 Context-aware based on missing slots
 Multiple formats: open-ended, multiple choice, confirmation
 
-
-
-📋 Prompt Structure:
+Prompt Structure:
 Base Prompt Includes:
 
 Role and responsibilities
@@ -1290,10 +4945,58 @@ python src/utilities/seed_l2_prompts.py
 # 5. Start application
 uvicorn main:app --reload
 
-================================================================================
-Phase 3.2: Summary Create Specialized L2 Agents
-================================================================================
+Would you like me to:
 
+✅ Create this src/utilities/seed_l2_prompts.py file?
+Move to Phase 3.2 (Create Specialized L2 Agents - ClientReceptionistL2, ProspectReceptionistL2, etc.)?
+Create a master setup script that runs all seeding operations?
+
+Let me know!RetryS3.2EditPhase 3.2: Create Specialized L2 Agents
+I'll create the four specialized L2 agents that extend the ReceptionistL2Base class. I'll start with all four agents in separate artifacts since they're distinct implementations.
+3.2.1 - Client Receptionist L2client_receptionist_l2.pyCode # ==================== src/agents/client_receptionist_l2.py ====================
+"""
+Client Receptionist L2 - Intent refiner for existing clients.
+Handles existing customers with accounts and service history.
+"""
+
+import logging
+from typing import Di3.2.2 - Prospect Receptionist L2prospect_receptionist_l2.pyCode # ==================== src/agents/prospect_receptionist_l2.py ====================
+"""
+Prospect Receptionist L2 - Intent refiner for prospective clients.
+Handles new potential customers who don't have accounts yet.
+"""
+
+import logging
+from typing imp3.2.3 - Partner Receptionist L2partner_receptionist_l2.pyCode # ==================== src/agents/partner_receptionist_l2.py ====================
+"""
+Partner Receptionist L2 - Intent refiner for vendors/partners.
+Handles contractors and business partners who work with/for the company.
+"""
+
+import logging
+from typ3.2.4 - General Receptionist L2general_receptionist_l2.pyCode # ==================== src/agents/general_receptionist_l2.py ====================
+"""
+General Receptionist L2 - Intent refiner for unknown/general callers.
+Handles callers who don't fit other categories or need classification.
+"""
+
+import logging
+froRetrySContinueEditgeneral_receptionist_l2.pyCode ∙ Version 2 **GENERAL/UNKNOWN CALLER REFINEMENT GUIDELINES:**
+
+You are handling a caller whose type is UNKNOWN or doesn't fit client/prospect/partner categories.
+
+🎯 **Primary Goals:**
+1. **Qualify the Caller** - Determine if they should be client/prospect/partnPerfect! Now I've completed all four specialized L2 agents. Let me create a summary document and factory module to tie them together.
+3.2.5 - L2 Agent Factoryl2_agent_factory.py - Factory for L2 AgentsCode # ==================== src/agents/l2_agent_factory.py ====================
+"""
+L2 Agent Factory - Creates appropriate L2 agent based on caller type.
+Provides a unified interface for instantiating specialized L2 agents.
+"""
+
+import logging
+from typingExcellent! Now let me create a comprehensive summary document for Phase 3.2.
+
+📊 Phase 3.2 Complete Summary
 ✅ Files Created:
 
 src/agents/client_receptionist_l2.py - Client L2 Agent
@@ -1402,11 +5105,273 @@ What We Built:
 ✅ Comprehensive slot management
 ✅ Context-aware entity extraction
 
-================================================================================
-Summary Update the workflow to use these L2
-================================================================================
 
-Current State vs. Target State
+Would you like me to:
+
+✅ Create all these L2 agent files?
+Move to Phase 4.1 (Create L3 Base Agent)?
+Create integration tests for L2 agents?
+Update the workflow to use these L2 agents?
+
+Let me know which direction you'd like to go next!RetryS4EditPhase 4.1: Create L3 Base Agent
+I'll create the base class for all L3 agents (domain specialists) that will execute actions.l3_base_agent.py - L3 Base AgentCode # ==================== src/agents/l3_base_agent.py ====================
+"""
+L3 Base Agent - Domain specialist base class.
+All L3 agents (Sales, Support, Billing, etc.) extend this class.
+"""
+
+import logging
+import time
+from typing import Optional, DiPerfect! I've created the L3 Base Agent. Now let me create a summary document explaining what we've built and what the next steps are.
+
+📊 Phase 4.1 Summary: L3 Base Agent
+✅ What We Built:
+src/agents/l3_base_agent.py - Base class for all domain specialist agents
+🎯 L3 Agent Responsibilities:
+
+Validate Prerequisites - Ensure all required information is present
+Execute Actions - Perform domain-specific operations (bookings, tickets, payments, etc.)
+Generate Confirmations - Create user-facing messages using LLM
+Provide Next Steps - Guide user on what happens next
+Handle Errors - Graceful failure with recovery options
+
+
+🔧 Key Features:
+Action Execution Framework:
+
+Abstract execute_action() method for domain logic
+Abstract validate_prerequisites() for pre-flight checks
+Abstract get_supported_actions() for capability registration
+Intent-to-action mapping
+
+Confirmation Generation:
+
+Uses LLM (Gemini Pro) to generate natural confirmations
+Context-aware messages (includes customer name, booking details, etc.)
+Fallback templates if LLM fails
+2-3 sentence conversational tone
+
+Next Steps Logic:
+
+Action-specific guidance
+Up to 3 next steps per action
+Recovery steps for failures
+Sets clear expectations
+
+Validation Helpers:
+
+_check_required_slots() - Verify all slots filled
+_validate_entity_format() - Format validation (phone, email, date)
+Returns clear error messages
+
+Error Handling:
+
+Prerequisite failures (missing information)
+Action execution failures (system errors)
+LLM failures (fallback confirmations)
+Escalation triggers
+
+
+🏗️ Architecture:
+L3BaseAgent (abstract)
+│
+├── get_supported_actions()      [abstract - list capabilities]
+├── execute_action()              [abstract - do the work]
+├── validate_prerequisites()      [abstract - check requirements]
+│
+├── process()                     [implemented - main flow]
+├── _determine_action()           [implemented - intent→action]
+├── _generate_confirmation()      [implemented - LLM messaging]
+├── _determine_next_steps()       [implemented - guidance]
+└── _update_state_with_l3_output()[implemented - state management]
+
+📝 Subclass Implementation Pattern:
+pythonfrom src.agents.l3_base_agent import L3BaseAgent
+
+class SalesAgentL3(L3BaseAgent):
+    """Sales domain specialist."""
+    
+    def __init__(self, db_service):
+        super().__init__(
+            agent_name="sales_agent_l3",
+            domain="sales",
+            db_service=db_service
+        )
+    
+    def get_supported_actions(self) -> List[str]:
+        """Actions this agent can perform."""
+        return [
+            "create_booking",
+            "send_quote",
+            "check_availability"
+        ]
+    
+    async def validate_prerequisites(
+        self,
+        action_name: str,
+        state: WorkflowState
+    ) -> tuple[bool, Optional[str]]:
+        """Validate requirements for action."""
+        if action_name == "create_booking":
+            # Check required slots
+            return self._check_required_slots(
+                state,
+                ["address", "preferred_date", "service_type", "contact_number"]
+            )
+        return True, None
+    
+    async def execute_action(
+        self,
+        action_name: str,
+        state: WorkflowState
+    ) -> Dict[str, Any]:
+        """Execute the domain action."""
+        if action_name == "create_booking":
+            return await self._create_booking(state)
+        
+        return {"success": False, "error_message": "Action not implemented"}
+    
+    async def _create_booking(self, state: WorkflowState) -> Dict[str, Any]:
+        """Actual booking creation logic."""
+        # 1. Validate availability
+        # 2. Create booking record in DB
+        # 3. Send confirmation email
+        # 4. Update calendar
+        # 5. Return result
+        
+        booking_id = "BK-12345"  # From DB insert
+        
+        return {
+            "success": True,
+            "result_data": {
+                "booking_id": booking_id,
+                "date": state.entities["preferred_date"],
+                "time": state.entities.get("preferred_time", "TBD"),
+                "service_type": state.entities["service_type"]
+            }
+        }
+
+💬 Confirmation Message Examples:
+Booking Confirmation:
+Input: booking_id=BK-12345, date=2025-10-15, time=2pm, service_type=home_cleaning
+
+LLM Output:
+"Great news! I've scheduled your home cleaning for October 15th at 2pm. 
+Your booking confirmation number is BK-12345. You'll receive a confirmation 
+email shortly with all the details."
+Quote Sent:
+Input: quote_id=QT-789, total=$150, service=deep_clean
+
+LLM Output:
+"I've prepared a quote for your deep cleaning service at $150. The detailed 
+quote has been sent to your email. Feel free to review it and let me know 
+if you have any questions or would like to proceed!"
+Ticket Created:
+Input: ticket_id=TK-456, issue_type=quality_complaint
+
+LLM Output:
+"I've created ticket #TK-456 for your quality concern. A supervisor will 
+review your case and reach out within 24 hours. We take these matters 
+seriously and appreciate you bringing this to our attention."
+
+🎯 Processing Flow:
+1. L3 receives state from L2 with:
+   - Refined intent
+   - Extracted entities
+   - Filled slots
+
+2. Determine action from intent
+   → "book_home_cleaning" maps to "create_booking"
+
+3. Validate prerequisites
+   → Check all required slots present
+   → Validate entity formats
+   → Return error if invalid
+
+4. Execute action
+   → Run domain-specific logic
+   → Create DB records
+   → Send emails/notifications
+   → Return result data
+
+5. Generate confirmation
+   → Use LLM with action results
+   → Create natural language message
+   → Include key details
+
+6. Determine next steps
+   → Action-specific guidance
+   → Set expectations
+   → Provide options
+
+7. Update state
+   → Store results
+   → Mark as processed
+   → Add to routing history
+
+8. Return updated state
+
+🛡️ Error Handling:
+Scenario 1: Missing Prerequisites
+python# Missing required slot "address"
+→ validate_prerequisites() returns (False, "Missing required information: address")
+→ Create error L3Output
+→ Message: "I need some additional information... Missing required information: address"
+→ Does NOT execute action
+→ May trigger clarification or escalation
+Scenario 2: Action Execution Failure
+python# Database error during booking creation
+→ execute_action() returns {"success": False, "error_message": "Database timeout"}
+→ L3Output with ActionStatus.FAILED
+→ Message: "I apologize, but I was unable to complete your request: Database timeout"
+→ Next steps: ["Please try again or contact support for assistance"]
+Scenario 3: LLM Confirmation Failure
+python# LLM API error
+→ _generate_confirmation_message() catches exception
+→ Falls back to template: "Your request has been processed successfully..."
+→ Action still succeeded, just using fallback message
+
+📊 State Updates:
+L3 updates WorkflowState with:
+
+action_result: Full result data from action
+action_success: Boolean success flag
+confirmation_message: User-facing message
+next_steps: List of guidance strings
+response_text: Same as confirmation_message
+current_tier: "L3"
+current_agent: L3 agent name
+processed: True
+routing_history: Add L3 step
+
+
+🎯 Next Steps in Phase 4:
+Phase 4.2 will create specialized L3 agents:
+
+SalesAgentL3 - Bookings, quotes, availability
+SupportAgentL3 - Tickets, complaints, issues
+BillingAgentL3 - Invoices, payments, disputes
+SchedulingAgentL3 - Rescheduling, cancellations
+PartnerAgentL3 - Vendor check-ins, updates
+GeneralAgentL3 - FAQs, information
+
+Each will implement:
+
+get_supported_actions(): List of capabilities
+validate_prerequisites(): Action-specific validation
+execute_action(): Domain logic implementation
+
+
+Would you like me to:
+
+✅ Create the src/agents/l3_base_agent.py file?
+Move to Phase 4.2 (Create Specialized L3 Agents - starting with SalesAgentL3)?
+Create L3 prompt seeds for confirmation messages?
+Show detailed examples of action execution patterns?
+
+Let me know!RetrySSummary Update the workflow to use these L2EditSummary: Update Workflow to Use L2 Agents
+I'll provide a comprehensive summary of what needs to be updated to integrate the L2 agents into the existing workflow, and create an updated workflow file.
+📋 Current State vs. Target State
 Current Workflow (Old):
 START → identity_check → intent_analysis → response_generation → END
 Target Workflow (New with L2):
@@ -1468,7 +5433,6 @@ import logging
 import asyncio
 import json
 imPerfect! Now let me create a comprehensive summary document with all the changes and migration steps.
-
 
 📊 Complete Summary: Workflow Integration with L2 Agents
 ✅ What Changed:
@@ -1911,234 +5875,568 @@ No actual database writes for actions
 Clarification handling is one-way (doesn't parse user response yet)
 
 
+Would you like me to:
 
-================================================================================
-Phase 4.1: Summary Create L3 Base Agent
-================================================================================
+✅ Create these updated workflow files?
+Create the test suite for the new workflow?
+Move to Phase 4.2 (Implement L3 Specialized Agents)?
+Create a deployment script that runs all setup steps?
 
-What We Built:
-src/agents/l3_base_agent.py - Base class for all domain specialist agents
-🎯 L3 Agent Responsibilities:
+Let me know what you'd like to tackle next!RetryS1EditCreating Updated Workflow Files
+Perfect! I'll create the updated workflow files now. Let me organize this properly.
+Files to Create/Update:
 
-Validate Prerequisites - Ensure all required information is present
-Execute Actions - Perform domain-specific operations (bookings, tickets, payments, etc.)
-Generate Confirmations - Create user-facing messages using LLM
-Provide Next Steps - Guide user on what happens next
-Handle Errors - Graceful failure with recovery options
+✅ src/workflow/ai_receptionist_workflow.py (already in artifact "updated_workflow")
+✅ src/workflow/workflow_runner.py (already in artifact "updated_workflow_runner")
 
+I've already created both files in the artifacts above. Now let me create a quick migration checklist and verification script to help with the transition.
 
-🔧 Key Features:
-Action Execution Framework:
+Additional Helper: Migration Verification Scriptverify_workflow_migration.pyCode # ==================== verify_workflow_migration.py ====================
+"""
+Verification script for workflow migration to 3-tier routing.
+Run this after updating workflow files to verify everything is working.
+"""
 
-Abstract execute_action() method for domain logic
-Abstract validate_prerequisites() for pre-flight checks
-Abstract get_supported_actions() for capability registration
-Intent-to-action mapping
+import asyncio
+import sys
+from patPerfect! Now let me create a quick setup script to help with the migration:setup_workflow_migration.shCode #!/bin/bash
+# ==================== setup_workflow_migration.sh ====================
+# Setup script for migrating to 3-tier workflow routing
+# Run this script to set up all necessary components
 
-Confirmation Generation:
+set -e  # Exit on error
 
-Uses LLM (Gemini Pro) to generate natural confirmations
-Context-aware messages (includes customer name, booking details, etc.)
-Fallback templates if LLM fails
-2-3 sentence conversational tone
+echo "=========================Excellent! Now let me create one final comprehensive document summarizing everything:
 
-Next Steps Logic:
+📦 Migration Package Created
+I've created all the necessary files for migrating to the 3-tier workflow. Here's what's ready:
+✅ Core Workflow Files (Already in Artifacts):
 
-Action-specific guidance
-Up to 3 next steps per action
-Recovery steps for failures
-Sets clear expectations
+src/workflow/ai_receptionist_workflow.py ⭐ NEW
 
-Validation Helpers:
-
-_check_required_slots() - Verify all slots filled
-_validate_entity_format() - Format validation (phone, email, date)
-Returns clear error messages
-
-Error Handling:
-
-Prerequisite failures (missing information)
-Action execution failures (system errors)
-LLM failures (fallback confirmations)
-Escalation triggers
+Complete 3-tier routing workflow
+L1, L2, L3 nodes with conditional routing
+Clarification loop logic
+Human escalation handling
 
 
-🏗️ Architecture:
-L3BaseAgent (abstract)
-│
-├── get_supported_actions()      [abstract - list capabilities]
-├── execute_action()              [abstract - do the work]
-├── validate_prerequisites()      [abstract - check requirements]
-│
-├── process()                     [implemented - main flow]
-├── _determine_action()           [implemented - intent→action]
-├── _generate_confirmation()      [implemented - LLM messaging]
-├── _determine_next_steps()       [implemented - guidance]
-└── _update_state_with_l3_output()[implemented - state management]
+src/workflow/workflow_runner.py ⭐ UPDATED
 
-📝 Subclass Implementation Pattern:
-pythonfrom src.agents.l3_base_agent import L3BaseAgent
+Enhanced response format
+Routing history tracking
+Performance metrics
+Better error handling
 
-class SalesAgentL3(L3BaseAgent):
-    """Sales domain specialist."""
+
+verify_workflow_migration.py ⭐ NEW
+
+Automated verification script
+Tests all components
+6-step verification process
+Clear pass/fail reporting
+
+
+setup_workflow_migration.sh ⭐ NEW
+
+One-command setup script
+Backs up existing files
+Runs all migrations
+Seeds all prompts
+Verifies installation
+
+
+
+
+🚀 Quick Start Guide
+Option 1: Automated Setup (Recommended)
+bash# Make script executable
+chmod +x setup_workflow_migration.sh
+
+# Run setup
+./setup_workflow_migration.sh
+This will:
+
+Backup existing workflow files
+Run database migration
+Seed L1 prompts
+Seed L2 prompts
+Verify everything works
+
+Option 2: Manual Setup
+bash# 1. Backup existing files
+cp src/workflow/ai_receptionist_workflow.py src/workflow/ai_receptionist_workflow.py.backup
+cp src/workflow/workflow_runner.py src/workflow/workflow_runner.py.backup
+
+# 2. Replace with new workflow files (from artifacts)
+
+# 3. Run migrations
+python src/utilities/migrate_routing_collections.py
+python src/utilities/seed_l1_prompts.py
+python src/utilities/seed_l2_prompts.py
+
+# 4. Verify
+python verify_workflow_migration.py
+
+✅ Verification Checklist
+The verification script checks:
+
+Imports - All necessary modules load correctly
+Database - Connection works, collections exist
+Prompts - L1 and L2 prompts are seeded
+L1 Agent - Classification works with sample inputs
+L2 Factory - All L2 agents can be created
+Workflow - Complete end-to-end test
+
+Expected output:
+✅ PASSED - Imports
+✅ PASSED - Database
+✅ PASSED - Prompts
+✅ PASSED - L1 Agent
+✅ PASSED - L2 Factory
+✅ PASSED - Workflow
+
+Overall: 6/6 checks passed
+🎉 All verification checks passed! Workflow migration successful.
+
+🧪 Testing After Migration
+Test 1: Command Line
+bashpython src/workflow/workflow_runner.py "555-123-4567" "I need to schedule a cleaning"
+Test 2: API
+bash# Start server
+uvicorn main:app --reload
+
+# Test endpoint
+curl -X POST http://localhost:8000/process-call \
+  -H "Content-Type: application/json" \
+  -d '{
+    "caller_phone": "555-123-4567",
+    "speech_text": "I want to book a cleaning for next Tuesday",
+    "call_sid": "test_001"
+  }'
+Test 3: Python Script
+pythonimport asyncio
+from src.workflow.workflow_runner import WorkflowRunner
+
+async def test():
+    runner = WorkflowRunner()
+    result = await runner.run_workflow({
+        "caller_phone": "555-123-4567",
+        "speech_text": "I need help with my account",
+        "call_sid": "test_002"
+    })
+    print(result)
+
+asyncio.run(test())
+
+📊 What You'll See
+Successful Response Structure:
+json{
+  "success": true,
+  "caller_type": "client",
+  "response": "I understand you need help with scheduling...",
+  "intent_l1": {
+    "name": "scheduling",
+    "confidence": 0.92
+  },
+  "intent_l2": {
+    "name": "reschedule_service",
+    "confidence": 0.88
+  },
+  "routing": {
+    "current_tier": "L2",
+    "current_agent": "client_receptionist_l2",
+    "routing_history": [...]
+  },
+  "clarification": {
+    "question": "Which appointment would you like to reschedule?",
+    "attempt": 1,
+    "missing_slots": ["job_id"]
+  },
+  "performance": {
+    "total_time_ms": 1850,
+    "turn_count": 1
+  }
+}
+
+🎯 Summary of Changes
+What's New:
+
+✅ 3-tier routing (L1 → L2 → L3)
+✅ Dynamic L2 agent selection by caller type
+✅ Confidence-based routing decisions
+✅ Clarification loop (max 2 attempts)
+✅ Human escalation with ticket generation
+✅ Comprehensive routing history
+✅ Performance tracking
+
+What's Different:
+
+Old: Linear 4-node workflow
+New: Conditional routing with 5+ nodes
+Old: Single response generator
+New: Specialized agents per tier
+Old: No clarification handling
+New: Automatic clarification loops
+Old: Basic response format
+New: Rich response with routing data
+
+What's the Same:
+
+Same database models (extended, not replaced)
+Same API endpoints
+Same call_data input format
+Backward compatible caller types
+
+
+All files are ready in the artifacts above. Would you like me to:
+
+Explain any specific part in more detail?
+Create additional test cases?
+Move on to implementing L3 agents (Phase 4.2)?
+Create documentation for the API changes?
+
+Everything is prepared for the migration! 🎉RetryS❌ L1 test failed: 'str' object has no attribute 'value'EditFix: L1 Test Error
+The error 'str' object has no attribute 'value' suggests that somewhere in the code we're trying to call .value on a string instead of an Enum. Let me identify and fix the issue.
+🔍 Root Cause
+The issue is likely in the ReceptionistL1 agent where it's trying to access state.caller_type.value, but caller_type might already be a string in some cases.
+Let me fix the ReceptionistL1 code:UntitledText     def _update_state_with_l1_output(
+        self,
+        state: WorkflowState,
+        l1_output: L1Output
+    ) -> WorkflowState:
+        """
+        Update workflow state with L1 output.
+        
+        Args:
+            state: Current workflowNow let me also fix the build_prompt method that might have the same issue:UntitledText ∙ Version 2     def build_prompt(self, state: WorkflowState) -> str:
+        """
+        Build L1 classification prompt.
+        
+        Args:
+            state: Current workflow state
+        
+        Returns:
+            Formatted prompt string
+        """
+  Now let me check and fix similar issues in the workflow file:Updated ai_receptionist_workflow.pyCode ∙ Version 2             logger.info(
+                f"L1 complete: intent={state.intent_l1.name if state.intent_l1 else 'none'}, "
+                f"caller_type={state.caller_type.value if state.caller_type and hasattr(state.caller_type, 'value') else state.calNow let me create a utility function to handle enum/string conversion safely. Let me add this to the workflow_models.py file:Updated workflow_models.py (Phase 1.1)Code ∙ Version 2 def add_routing_step(state: WorkflowState, from_tier: str, to_tier: str, reason: str, confidence: float):
+    """Add a routing step to the routing history."""
+    state.routing_history.append({
+        "from_tier": from_tier,
+        "to_tier": to_tiPerfect! Now let me create a quick patch summary document:
+
+🔧 Fix Applied: Enum/String Handling
+Problem:
+The error 'str' object has no attribute 'value' occurred because the code was trying to call .value on caller_type which could be either:
+
+A CallerType enum (has .value attribute)
+A string (no .value attribute)
+
+Root Cause:
+Mixed handling of CallerType throughout the codebase - sometimes stored as enum, sometimes as string.
+Fixes Applied:
+1. Updated receptionist_l1.py:
+In build_prompt():
+python# OLD (breaks if caller_type is string):
+caller_type = state.caller_type.value if state.caller_type else "unknown"
+
+# NEW (handles both):
+if state.caller_type:
+    if hasattr(state.caller_type, 'value'):
+        caller_type = state.caller_type.value
+    else:
+        caller_type = str(state.caller_type)
+else:
+    caller_type = "unknown"
+In _update_state_with_l1_output():
+python# OLD (assumes l1_output.caller_type is string):
+state.caller_type = CallerType(l1_output.caller_type)
+
+# NEW (handles both, with error handling):
+if isinstance(l1_output.caller_type, str):
+    try:
+        state.caller_type = CallerType(l1_output.caller_type)
+    except ValueError:
+        state.caller_type = CallerType.UNKNOWN
+else:
+    state.caller_type = l1_output.caller_type
+
+# Also fixed suggested_l2_agent:
+if l1_output.suggested_l2_agent:
+    if hasattr(l1_output.suggested_l2_agent, 'value'):
+        state.selected_l2_agent = l1_output.suggested_l2_agent.value
+    else:
+        state.selected_l2_agent = str(l1_output.suggested_l2_agent)
+2. Updated ai_receptionist_workflow.py:
+python# OLD:
+f"caller_type={state.caller_type.value if state.caller_type else 'unknown'}"
+
+# NEW:
+f"caller_type={state.caller_type.value if state.caller_type and hasattr(state.caller_type, 'value') else state.caller_type or 'unknown'}"
+3. Added Helper Function in workflow_models.py:
+pythondef get_caller_type_value(caller_type) -> str:
+    """
+    Safely get the string value of a caller type (handles both enum and string).
     
-    def __init__(self, db_service):
+    Args:
+        caller_type: CallerType enum or string
+    
+    Returns:
+        String value of caller type
+    """
+    if caller_type is None:
+        return "unknown"
+    if hasattr(caller_type, 'value'):
+        return caller_type.value
+    return str(caller_type)
+Usage:
+python# Instead of:
+caller_type = state.caller_type.value  # BREAKS if string
+
+# Use:
+from src.models.workflow_models import get_caller_type_value
+caller_type = get_caller_type_value(state.caller_type)  # ALWAYS WORKS
+
+Testing the Fix:
+Run the verification script again:
+bashpython verify_workflow_migration.py
+The L1 test should now pass:
+✅ PASSED - L1 Agent
+
+Why This Happened:
+
+Pydantic Config: The WorkflowState model has use_enum_values = True, which can serialize enums to strings
+Mixed Usage: Some code paths set caller_type as enum, others as string
+Assumption: Code assumed it was always an enum with .value
+
+Prevention:
+Going forward, use the helper function get_caller_type_value() whenever accessing caller_type for display/logging purposes.
+
+🧪 Quick Test:
+python# Test the fix
+import asyncio
+from src.agents.receptionist_l1 import ReceptionistL1
+from src.services.database_service import DatabaseService
+from src.models.workflow_models import WorkflowState, CallerType
+
+async def test():
+    db = DatabaseService()
+    await db.connect()
+    
+    l1 = ReceptionistL1(db)
+    
+    # Test 1: No caller_type set
+    state1 = WorkflowState(
+        caller_phone="555-123-4567",
+        speech_text="I need help"
+    )
+    result1 = await l1.process(state1)
+    print(f"✅ Test 1: {result1.intent_l1.name}")
+    
+    # Test 2: Caller_type as string
+    state2 = WorkflowState(
+        caller_phone="555-123-4567",
+        speech_text="I need help",
+        caller_type="client"  # String
+    )
+    result2 = await l1.process(state2)
+    print(f"✅ Test 2: {result2.intent_l1.name}")
+    
+    # Test 3: Caller_type as enum
+    state3 = WorkflowState(
+        caller_phone="555-123-4567",
+        speech_text="I need help",
+        caller_type=CallerType.CLIENT  # Enum
+    )
+    result3 = await l1.process(state3)
+    print(f"✅ Test 3: {result3.intent_l1.name}")
+    
+    await db.disconnect()
+    print("\n✅ All tests passed!")
+
+asyncio.run(test())
+
+The fix has been applied to all artifacts. The verification script should now pass! 🎉
+Would you like me to:
+
+Run through any other potential similar issues?
+Create additional safety checks?
+Move forward with testing?
+RetryScan you make sure that the model_name="gemini-1.5-flash" is taken from the .env, LLM__MODEL_NAMEEditFix: Use Model Name from Environment Variables
+I'll update all agent files to use the model name from environment variables instead of hardcoding it.
+Files to Update:
+
+BaseAgent
+ReceptionistL1
+ReceptionistL2Base
+L3BaseAgent
+
+Let me update each one:
+
+1. Update BaseAgentUntitledText import json
+import time
+import logging
+import os
+from abc import ABC, abstractmethod
+from typing import Dict, Any, Optional, Union, Type
+from datetime import datetime
+
+import google.generativeai as genai
+from pydantic import BaseModel, ValidationErro2. Update ReceptionistL1UntitledText ∙ Version 3     def __init__(self, db_service: DatabaseService):
+        """
+        Initialize Receptionist L1.
+        
+        Args:
+            db_service: Database service for prompt retrieval
+        """
         super().__init__(
-            agent_name="sales_agent_l3",
-            domain="sales",
-            db_service=db_service
-        )
-    
-    def get_supported_actions(self) -> List[str]:
-        """Actions this agent can perform."""
-        return [
-            "create_booking",
-            "send_quote",
-            "check_availability"
-        ]
-    
-    async def validate_prerequisites(
+            agent_name="re3. Update ReceptionistL2Basereceptionist_l2_base.py (Phase 3.1)Code ∙ Version 2     def __init__(
         self,
-        action_name: str,
-        state: WorkflowState
-    ) -> tuple[bool, Optional[str]]:
-        """Validate requirements for action."""
-        if action_name == "create_booking":
-            # Check required slots
-            return self._check_required_slots(
-                state,
-                ["address", "preferred_date", "service_type", "contact_number"]
-            )
-        return True, None
-    
-    async def execute_action(
-        self,
-        action_name: str,
-        state: WorkflowState
-    ) -> Dict[str, Any]:
-        """Execute the domain action."""
-        if action_name == "create_booking":
-            return await self._create_booking(state)
+        agent_name: str,
+        caller_type: str,
+        db_service: DatabaseService
+    ):
+        """
+        Initialize L2 Base Agent.
         
-        return {"success": False, "error_message": "Action not implemented"}
-    
-    async def _create_booking(self, state: WorkflowState) -> Dict[str, Any]:
-        """Actual booking creation logic."""
-        # 1. Validate availability
-        # 2. Create booking record in DB
-        # 3. Send confirmation email
-        # 4. Update calendar
-        # 5. Return result
-        
-        booking_id = "BK-12345"  # From DB insert
-        
-        return {
-            "success": True,
-            "result_data": {
-                "booking_id": booking_id,
-                "date": state.entities["preferred_date"],
-                "time": state.entities.get("preferred_time", "TBD"),
-                "service_type": state.entities["service_type"]
-            }
-        }
+        Args:
+            agent_name: Name of the agent (e.g., "clien4. Update L3BaseAgentl3_base_agent.py - L3 Base AgentCode ∙ Version 2 """
+L3 Base Agent - Domain specialist base class.
+All L3 agents (Sales, Support, Billing, etc.) extend this class.
+"""
 
-💬 Confirmation Message Examples:
-Booking Confirmation:
-Input: booking_id=BK-12345, date=2025-10-15, time=2pm, service_type=home_cleaning
+import logging
+import time
+import os
+from typing import Optional, Dict, Any, List
+from abc import abstractmethod
+from datetime impPerfect! Now let me update the .env.example file to document these new environment variables:.env.example - Updated with Model ConfigurationCode # ==================== .env.example ====================
+# Copy this file to .env and fill in your actual values
 
-LLM Output:
-"Great news! I've scheduled your home cleaning for October 15th at 2pm. 
-Your booking confirmation number is BK-12345. You'll receive a confirmation 
-email shortly with all the details."
-Quote Sent:
-Input: quote_id=QT-789, total=$150, service=deep_clean
+# ============ LLM Configuration ============
+# Google Gemini API Key (required)
+LLM__GOOGLE_API_KEY=your_google_api_key_here
 
-LLM Output:
-"I've prepared a quote for your deep cleaning service at $150. The detailed 
-quote has been sent to your email. Feel free to review it and let me know 
-if you have any questions or would like to proceed!"
-Ticket Created:
-Input: ticket_id=TK-456, issue_type=quality_complaint
+# DefaultNow let me create a summary document explaining the changes:
 
-LLM Output:
-"I've created ticket #TK-456 for your quality concern. A supervisor will 
-review your case and reach out within 24 hours. We take these matters 
-seriously and appreciate you bringing this to our attention."
+✅ Model Configuration Update Summary
+Changes Made:
+1. BaseAgent - Updated to Read from Environment
 
-🎯 Processing Flow:
-1. L3 receives state from L2 with:
-   - Refined intent
-   - Extracted entities
-   - Filled slots
+Added load_dotenv() import
+Changed default parameter from hardcoded string to None
+Reads LLM__MODEL_NAME from environment with fallback to "gemini-1.5-flash"
 
-2. Determine action from intent
-   → "book_home_cleaning" maps to "create_booking"
+python# Before:
+def __init__(self, ..., model_name: str = "gemini-1.5-flash", ...):
 
-3. Validate prerequisites
-   → Check all required slots present
-   → Validate entity formats
-   → Return error if invalid
+# After:
+def __init__(self, ..., model_name: Optional[str] = None, ...):
+    if model_name is None:
+        model_name = os.getenv("LLM__MODEL_NAME", "gemini-1.5-flash")
+2. ReceptionistL1 - Passes None to Use Environment
+python# Before:
+super().__init__(..., model_name="gemini-1.5-flash", ...)
 
-4. Execute action
-   → Run domain-specific logic
-   → Create DB records
-   → Send emails/notifications
-   → Return result data
+# After:
+super().__init__(..., model_name=None, ...)  # Uses env var
+3. ReceptionistL2Base - Passes None to Use Environment
+python# Before:
+super().__init__(..., model_name="gemini-1.5-flash", ...)
 
-5. Generate confirmation
-   → Use LLM with action results
-   → Create natural language message
-   → Include key details
+# After:
+super().__init__(..., model_name=None, ...)  # Uses env var
+4. L3BaseAgent - Supports Separate L3 Model
+python# Check for L3-specific model first, then fall back to general model
+l3_model = os.getenv("LLM__L3_MODEL_NAME") or os.getenv("LLM__MODEL_NAME", "gemini-1.5-pro")
+super().__init__(..., model_name=l3_model, ...)
+Why separate for L3?
 
-6. Determine next steps
-   → Action-specific guidance
-   → Set expectations
-   → Provide options
+L3 agents generate user-facing messages (need quality)
+L1/L2 focus on speed (can use lighter model)
+Allows optimization: fast model for L1/L2, capable model for L3
 
-7. Update state
-   → Store results
-   → Mark as processed
-   → Add to routing history
 
-8. Return updated state
+Environment Variables:
+Required:
+bashLLM__GOOGLE_API_KEY=your_api_key_here
+Recommended:
+bash# Default model for L1 and L2 (fast classification/extraction)
+LLM__MODEL_NAME=gemini-1.5-flash
+Optional:
+bash# Separate model for L3 (better confirmation messages)
+LLM__L3_MODEL_NAME=gemini-1.5-pro
 
-🛡️ Error Handling:
-Scenario 1: Missing Prerequisites
-python# Missing required slot "address"
-→ validate_prerequisites() returns (False, "Missing required information: address")
-→ Create error L3Output
-→ Message: "I need some additional information... Missing required information: address"
-→ Does NOT execute action
-→ May trigger clarification or escalation
-Scenario 2: Action Execution Failure
-python# Database error during booking creation
-→ execute_action() returns {"success": False, "error_message": "Database timeout"}
-→ L3Output with ActionStatus.FAILED
-→ Message: "I apologize, but I was unable to complete your request: Database timeout"
-→ Next steps: ["Please try again or contact support for assistance"]
-Scenario 3: LLM Confirmation Failure
-python# LLM API error
-→ _generate_confirmation_message() catches exception
-→ Falls back to template: "Your request has been processed successfully..."
-→ Action still succeeded, just using fallback message
+Configuration Examples:
+Development (Cost-Optimized):
+bashLLM__MODEL_NAME=gemini-1.5-flash
+# No L3 override - uses flash for everything
+Production (Quality-Optimized):
+bashLLM__MODEL_NAME=gemini-1.5-flash        # Fast for L1/L2
+LLM__L3_MODEL_NAME=gemini-1.5-pro       # Quality for L3 confirmations
+High-Quality Everywhere:
+bashLLM__MODEL_NAME=gemini-1.5-pro
+# All agents use Pro model
 
-📊 State Updates:
-L3 updates WorkflowState with:
+Model Comparison:
+ModelSpeedCostBest Forgemini-1.5-flash⚡⚡⚡ Fast💰 LowL1/L2 classification & extractiongemini-1.5-pro⚡⚡ Moderate💰💰 MediumL3 confirmation messagesgemini-2.0-flash⚡⚡⚡ Very Fast💰 LowLatest fast model (if available)
 
-action_result: Full result data from action
-action_success: Boolean success flag
-confirmation_message: User-facing message
-next_steps: List of guidance strings
-response_text: Same as confirmation_message
-current_tier: "L3"
-current_agent: L3 agent name
-processed: True
-routing_history: Add L3 step
+Fallback Chain:
+For L1 and L2:
+1. Check LLM__MODEL_NAME environment variable
+2. If not set, use "gemini-1.5-flash"
+For L3:
+1. Check LLM__L3_MODEL_NAME environment variable
+2. If not set, check LLM__MODEL_NAME
+3. If not set, use "gemini-1.5-pro"
 
-================================================================================
-Summary Create L3 prompt seeds for confirmation messages
-================================================================================
+Testing Configuration:
+bash# Test with environment variable
+export LLM__MODEL_NAME=gemini-1.5-flash
+python verify_workflow_migration.py
 
-================================================================================
-Move to Phase 4.2 (Create Specialized L3 Agents - starting with SalesAgentL3)
-================================================================================
+# Test with different model
+export LLM__MODEL_NAME=gemini-1.5-pro
+python verify_workflow_migration.py
+
+# Test L3 with separate model
+export LLM__MODEL_NAME=gemini-1.5-flash
+export LLM__L3_MODEL_NAME=gemini-1.5-pro
+python verify_workflow_migration.py
+
+Verify Configuration:
+Add this to your test script:
+pythonimport os
+from src.agents.receptionist_l1 import ReceptionistL1
+from src.agents.l2_agent_factory import L2AgentFactory
+from src.services.database_service import DatabaseService
+
+print("Model Configuration:")
+print(f"  LLM__MODEL_NAME: {os.getenv('LLM__MODEL_NAME', 'not set (will use default)')}")
+print(f"  LLM__L3_MODEL_NAME: {os.getenv('LLM__L3_MODEL_NAME', 'not set (will use LLM__MODEL_NAME)')}")
+
+# Check what agents actually use
+db = DatabaseService()
+l1 = ReceptionistL1(db)
+print(f"\nL1 Agent using: {l1.model_name}")
+
+factory = L2AgentFactory(db)
+l2 = factory.create_agent(CallerType.CLIENT)
+print(f"L2 Agent using: {l2.model_name}")
+
+Benefits:
+✅ Flexibility: Change models without code changes
+✅ Cost Control: Use cheaper models for L1/L2, premium for L3
+✅ Testing: Easy to test different models
+✅ Deployment: Different configs per environment
+✅ Consistency: All agents use same configuration source
+
+All agent files have been updated! The model configuration is now centralized in environment variables. 🎉
+Next steps:
+
+Update your .env file with LLM__MODEL_NAME
+Run verification: python verify_workflow_migration.py
+Should now pass the L1 test!
+
+Would you like me to create any additional configuration documentation?

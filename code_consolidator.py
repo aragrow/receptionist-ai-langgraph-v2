@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 """
-Code Consolidator - Combines main.py and src/ files into a single text file
+Code Consolidator - Combines files from specified directories into a single text file
 """
 
 import os
 from pathlib import Path
 from datetime import datetime
 
+
+# ============ CONFIGURATION ============
+# Add directories to process here - easily scalable
+DIRECTORIES_TO_PROCESS = ['src', 'config']
+
+# Optional: Add specific files from root
+ROOT_FILES_TO_INCLUDE = ['main.py']
+
+# ============ FILE PROCESSING ============
 
 def get_file_extension_info(filepath):
     """Get a description of the file type based on extension"""
@@ -79,22 +88,37 @@ def consolidate_code(output_filename='consolidated_code.txt'):
     """Main function to consolidate all code files"""
     
     current_dir = Path.cwd()
-    main_py = current_dir / 'main.py'
-    src_dir = current_dir / 'src'
-    
-    # Collect all files to process
     files_to_process = []
     
-    # Add main.py if it exists
-    if main_py.exists() and main_py.is_file():
-        files_to_process.append(('ROOT', main_py))
+    # Add root files
+    print(f"Scanning root files...")
+    for filename in ROOT_FILES_TO_INCLUDE:
+        filepath = current_dir / filename
+        if filepath.exists() and filepath.is_file():
+            files_to_process.append(('ROOT', filepath))
+            print(f"  Found: {filename}")
     
-    # Add all files from src directory
-    if src_dir.exists() and src_dir.is_dir():
-        for filepath in sorted(src_dir.rglob('*')):
+    # Add files from configured directories
+    for dir_name in DIRECTORIES_TO_PROCESS:
+        dir_path = current_dir / dir_name
+        
+        if not dir_path.exists() or not dir_path.is_dir():
+            print(f"Warning: Directory '{dir_name}' not found, skipping...")
+            continue
+        
+        print(f"Scanning directory: {dir_name}/")
+        file_count = 0
+        
+        for filepath in sorted(dir_path.rglob('*')):
             if filepath.is_file() and should_include_file(filepath):
-                relative_path = filepath.relative_to(src_dir)
-                files_to_process.append(('src', filepath))
+                files_to_process.append((dir_name, filepath))
+                file_count += 1
+        
+        print(f"  Found {file_count} files in {dir_name}/")
+    
+    if not files_to_process:
+        print("No files found to process!")
+        return None
     
     # Write consolidated output
     with open(output_filename, 'w', encoding='utf-8') as output:
@@ -103,6 +127,7 @@ def consolidate_code(output_filename='consolidated_code.txt'):
         output.write("CODE CONSOLIDATION REPORT\n")
         output.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         output.write(f"Total files: {len(files_to_process)}\n")
+        output.write(f"Directories: {', '.join(DIRECTORIES_TO_PROCESS)}\n")
         output.write("=" * 80 + "\n\n")
         
         # Write each file's content
@@ -114,15 +139,22 @@ def consolidate_code(output_filename='consolidated_code.txt'):
                 output.write(f"FILE: {filepath.name}\n")
                 output.write(f"PATH: ./{filepath.name}\n")
             else:
-                relative_path = filepath.relative_to(src_dir)
+                dir_path = current_dir / location
+                relative_path = filepath.relative_to(dir_path)
                 output.write(f"FILE: {filepath.name}\n")
-                output.write(f"PATH: ./src/{relative_path}\n")
+                output.write(f"PATH: ./{location}/{relative_path}\n")
             
             output.write(f"TYPE: {get_file_extension_info(filepath)}\n")
             output.write(f"SIZE: {filepath.stat().st_size:,} bytes\n")
             output.write(f"{separator}\n\n")
             
-            # Write file content
+            # Write file content with section marker
+            if location == 'ROOT':
+                output.write(f"# ==================== {filepath.name} ====================\n")
+            else:
+                relative_path = filepath.relative_to(current_dir / location)
+                output.write(f"# ==================== {location}/{relative_path} ====================\n")
+            
             content = read_file_safely(filepath)
             output.write(content)
             output.write("\n\n")
@@ -132,9 +164,16 @@ def consolidate_code(output_filename='consolidated_code.txt'):
         output.write("END OF CONSOLIDATION\n")
         output.write("=" * 80 + "\n")
     
-    print(f"✓ Consolidation complete!")
+    print(f"\n✓ Consolidation complete!")
     print(f"✓ Output written to: {output_filename}")
     print(f"✓ Total files processed: {len(files_to_process)}")
+    
+    # Print breakdown by directory
+    print(f"\nBreakdown by location:")
+    from collections import Counter
+    location_counts = Counter(loc for loc, _ in files_to_process)
+    for location, count in sorted(location_counts.items()):
+        print(f"  {location}: {count} files")
     
     return output_filename
 

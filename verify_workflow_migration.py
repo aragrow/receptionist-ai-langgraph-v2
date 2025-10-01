@@ -152,8 +152,8 @@ async def verify_prompts():
         
         # Check L1 prompts
         l1_prompt = await db_service.find_agent_action_prompt(
-            agent="receptionist",
-            action="l1_classification",
+            agent="receptionist_l1",
+            action="classify_intent",
             level=1
         )
         
@@ -168,7 +168,7 @@ async def verify_prompts():
         print("\nL2 prompts:")
         for caller_type in l2_caller_types:
             prompt = await db_service.find_agent_action_prompt(
-                agent="receptionist",
+                agent="receptionist_l1",
                 action=f"l2_refinement_{caller_type}",
                 level=1
             )
@@ -179,7 +179,7 @@ async def verify_prompts():
         
         # Check clarification prompt
         clarification_prompt = await db_service.find_agent_action_prompt(
-            agent="receptionist",
+            agent="receptionist_l1",
             action="l2_clarification",
             level=1
         )

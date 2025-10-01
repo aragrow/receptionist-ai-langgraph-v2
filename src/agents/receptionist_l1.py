@@ -274,9 +274,9 @@ Respond ONLY with valid JSON, no additional text."""
         """Load system prompt from database."""
         try:
             prompt_doc = await self.db_service.find_agent_action_prompt(
-                agent="receptionist",
-                action="l1_classification",
-                level=1
+                agent="receptionist_l1",
+                action="classify_intent",
+                level=True
             )
             
             if prompt_doc and "prompt" in prompt_doc:
@@ -403,14 +403,14 @@ If uncertain, default to 'general' intent and lower confidence."""
             Updated workflow state
         """
         from src.models.workflow_models import IntentL1
-        from datetime import datetime
+        from datetime import datetime, UTC
         
         # Update intent L1
         state.intent_l1 = IntentL1(
             name=l1_output.intent_name,
             confidence=l1_output.confidence,
             category=l1_output.intent_category,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(UTC)
         )
         
         # Update caller type if detected (and not already set from identity check)
@@ -454,7 +454,6 @@ If uncertain, default to 'general' intent and lower confidence."""
         )
         
         return state
-
 
 # ============ Factory Function ============
 

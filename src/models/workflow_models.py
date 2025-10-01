@@ -4,7 +4,7 @@
 from enum import Enum
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class CallerType(str, Enum):
@@ -206,7 +206,7 @@ def add_routing_step(state: WorkflowState, from_tier: str, to_tier: str, reason:
         "to_tier": to_tier,
         "reason": reason,
         "confidence": confidence,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     })
 
 

@@ -22374,3 +22374,5987 @@ index e5dc189..2f3c703 100644
 \ No newline at end of file
 ```
 
+
+---
+## Branch: dev-8
+**Created:** 2025-09-30 11:01:57  
+**Commit Message:** Working on System Verification.
+
+### Files Changed:
+```
+ Archive.zip                                        |  Bin 0 -> 93377 bytes
+ branch-summary.md                                  | 2888 ++++++++++++++++++++
+ code_consolidator.py                               |  143 +
+ consolidated_code.txt                              | 2713 ++++++++++++++++++
+ ...30_071828_appointment_scheduling_13388582100.md |   17 +
+ src/nodes/intent_analyzer.py                       |    4 +-
+ src/nodes/response_generator.v0.py                 |  147 +
+ 7 files changed, 5910 insertions(+), 2 deletions(-)
+```
+
+### Code Changes:
+```diff
+diff --git a/Archive.zip b/Archive.zip
+new file mode 100644
+index 0000000..16abd5d
+Binary files /dev/null and b/Archive.zip differ
+diff --git a/branch-summary.md b/branch-summary.md
+index 18e5cba..497b3fc 100644
+--- a/branch-summary.md
++++ b/branch-summary.md
+@@ -12066,3 +12066,2891 @@ index 4376103..388ba2c 100644
+  version = "2.5.0"
+ ```
+ 
++
++---
++## Branch: dev-6
++**Created:** 2025-09-29 23:31:38  
++**Commit Message:** Next work on response node.
++
++### Files Changed:
++```
++ Project Requirements.md                            |   8 +
++ branch-summary.md                                  | 293 ++++++++++++++++++++
++ main.py                                            |  46 +++-
++ pyproject.toml                                     |   3 +
++ ...29_201416_appointment_scheduling_13388582100.md |  17 ++
++ ...29_201729_appointment_scheduling_13388582100.md |  17 ++
++ ...29_202135_appointment_scheduling_13388582100.md |  17 ++
++ ...29_202412_appointment_scheduling_13388582100.md |  17 ++
++ ...29_202501_appointment_scheduling_13388582100.md |  17 ++
++ ...29_202628_appointment_scheduling_13388582100.md |  17 ++
++ ...29_204510_appointment_scheduling_13388582100.md |  17 ++
++ ...29_204604_appointment_scheduling_13388582100.md |  17 ++
++ ...29_204657_appointment_scheduling_13388582100.md |  17 ++
++ ...29_204937_appointment_scheduling_13388582100.md |  17 ++
++ ...29_205534_appointment_scheduling_13388582100.md |  17 ++
++ ...29_205753_appointment_scheduling_13388582100.md |  17 ++
++ ...29_205853_appointment_scheduling_13388582100.md |  17 ++
++ ...29_210023_appointment_scheduling_13388582100.md |  17 ++
++ ...29_210345_appointment_scheduling_13388582100.md |  17 ++
++ ...29_210537_appointment_scheduling_13388582100.md |  17 ++
++ ...29_210715_appointment_scheduling_13388582100.md |  17 ++
++ ...29_211107_appointment_scheduling_13388582100.md |  17 ++
++ ...29_211247_appointment_scheduling_13388582100.md |  17 ++
++ src/models/database_models.py                      |  27 +-
++ src/models/workflow_models.py                      |   6 +
++ src/nodes/context_builder.py                       |   2 +-
++ src/nodes/identity_checker.py                      |  36 ++-
++ src/nodes/intent_analyzer.py                       | 104 ++++---
++ src/nodes/response_generator.py                    | 171 ++++++++----
++ src/services/context_service.py                    |  90 +++---
++ src/services/database_service.py                   |  43 ++-
++ src/services/embedding_service.py                  |  14 +-
++ src/utilities/generate_test_data.py                |  33 ++-
++ src/workflow/ai_receptionist_workflow.py           |  16 +-
++ src/workflow/workflow_runner.py                    |  19 +-
++ test_regeneration_instructions.md                  |  96 +++++++
++ tests/replicate_conversations.py                   | 239 ++++++++++++++++
++ tests/run_tests.py                                 | 305 +++++++++++++++++++++
++ tests/test_access_control.py                       |  14 +
++ tests/test_models.py                               |  26 ++
++ tests/test_nodes.py                                |  23 ++
++ tests/test_performance.py                          |  15 +
++ tests/test_regression.py                           |  18 ++
++ tests/test_services.py                             |  31 +++
++ tests/test_utilites.py                             |  20 ++
++ tests/tetst_integration.py                         |  18 ++
++ uv.lock                                            |  53 +++-
++ 47 files changed, 1917 insertions(+), 175 deletions(-)
++```
++
++### Code Changes:
++```diff
++diff --git a/Project Requirements.md b/Project Requirements.md
++index 2e62c8f..65142c2 100644
++--- a/Project Requirements.md	
+++++ b/Project Requirements.md	
++@@ -275,7 +275,15 @@ The AI receptionist should be able to answer **client and vendor questions** whi
++     I want to use google.generativeai to generate embeddings.  The model should be: models/text-embedding-004
++     I want to use google.generativeai to chat with the data.  The model should be: gemini-1.5-flash
++     If the text to vectorize is over 1000 tokens, then break in chucks, with 100 tokens overlap.
+++    Make sure that v2 of pydantic is implemented
+++    Create test scripts using pytest to test all the functionality.  The tests must be controller by a single test service.
+++    Each test should return to the test service whether or not the test passed, if not return message too.
++ 
+++
+++# Testing
+++    create a list with all the recomended tests to run before promoting to production.
+++    Use that list to create tests scripts, name them for what they do.
+++    Create a master test script controller to run all tests.  Report the results in nice tabulated table.
++ # App Hierchacy Output
++ 
++  .env
++diff --git a/branch-summary.md b/branch-summary.md
++index 5f62c64..248c7aa 100644
++--- a/branch-summary.md
+++++ b/branch-summary.md
++@@ -4599,3 +4599,296 @@ index 0000000..3598e70
++ +]
++ ```
++ 
+++
+++---
+++## Branch: dev-4
+++**Created:** 2025-09-23 22:15:13  
+++**Commit Message:** Modify embedding to Google, modify md, and add basic test functionality.
+++
+++### Files Changed:
+++```
+++ branch-summary.md                        | 16 +++++++++++
+++ changes to original code.md              | 25 +++++++++++++++++
+++ pyproject.toml                           |  3 +-
+++ src/models/database_models.py            | 25 +++++++++++------
+++ src/workflow/ai_receptionist_workflow.py |  3 +-
+++ uv.lock                                  | 47 ++++++++++++++++++++++++++++++--
+++ 6 files changed, 105 insertions(+), 14 deletions(-)
+++```
+++
+++### Code Changes:
+++```diff
+++diff --git a/branch-summary.md b/branch-summary.md
+++index 8b40619..0fbcc72 100644
+++--- a/branch-summary.md
++++++ b/branch-summary.md
+++@@ -6,3 +6,19 @@ This file tracks branch creation and changes for LLM context restoration.
+++ **Generated by:** GitHub Incremental Branch Creator  
+++ **Last updated:** 2025-09-22 19:52:37
+++ 
++++
++++---
++++## Branch: dev-2
++++**Created:** 2025-09-23 08:50:53  
++++**Commit Message:** Claude Code Produced Files
++++
++++### Files Changed:
++++```
++++No previous commit to compare
++++```
++++
++++### Code Changes:
++++```diff
++++No previous commit to compare
++++```
++++
+++diff --git a/changes to original code.md b/changes to original code.md
+++new file mode 100644
+++index 0000000..8b83424
+++--- /dev/null
++++++ b/changes to original code.md	
+++@@ -0,0 +1,25 @@
++++# Changes to Original Code generated with Claude Code
++++
++++## === src/workflow/ai_receptionist_workflow.py ====
++++
++++Since in modern langgraph the ToolExecutor helper was removed or replaced, and you’re not actually using it anywhere inside your AIReceptionistWorkflow class, the simplest fix is to delete that import entirely.
++++
++++### Key changes:
++++
++++Removed the bad line from langgraph.prebuilt import ToolExeToolcutor.
++++
++++Nothing else needed, since you weren’t using ToolExecutor inside this workflow anyway.
++++
++++### Debug time: 5 minutes
++++
++++## === src/models/database_models.py ===
++++
++++Your codebase was written for Pydantic v1, where you could customize JSON schemas using __modify_schema__. In Pydantic v2, that was removed and replaced with __get_pydantic_json_schema__.
++++
++++### Key changes:
++++
++++Replaced __modify_schema__ → __get_pydantic_json_schema__.
++++
++++Converted class Config: into model_config = ConfigDict(...).
++++
++++### Debug time: 5 minutes
+++\ No newline at end of file
+++diff --git a/pyproject.toml b/pyproject.toml
+++index 99eb50c..e84bddf 100644
+++--- a/pyproject.toml
++++++ b/pyproject.toml
+++@@ -27,6 +27,7 @@ dependencies = [
+++     "click",
+++     "colorama",
+++     "dill",
++++    "fastapi>=0.117.1",
+++     "filetype",
+++     "frozenlist",
+++     "google-ai-generativelanguage",
+++@@ -49,7 +50,6 @@ dependencies = [
+++     "langchain-text-splitters",
+++     "langgraph",
+++     "langgraph-checkpoint",
+++-    "langgraph-prebuilt",
+++     "langgraph-sdk",
+++     "langsmith",
+++     "mando",
+++@@ -90,6 +90,7 @@ dependencies = [
+++     "tzdata",
+++     "urllib3",
+++     "uv",
++++    "uvicorn>=0.37.0",
+++     "xxhash",
+++     "yarl",
+++     "zstandard",
+++diff --git a/src/models/database_models.py b/src/models/database_models.py
+++index a4f7b47..ff6c434 100644
+++--- a/src/models/database_models.py
++++++ b/src/models/database_models.py
+++@@ -3,7 +3,9 @@
+++ 
+++ from datetime import datetime
+++ from typing import Optional, List
+++-from pydantic import BaseModel, Field
++++from pydantic import BaseModel, Field, ConfigDict
++++from pydantic.json_schema import JsonSchemaValue
++++from pydantic import GetJsonSchemaHandler
+++ from bson import ObjectId
+++ 
+++ 
+++@@ -21,8 +23,12 @@ class PyObjectId(ObjectId):
+++         return ObjectId(v)
+++     
+++     @classmethod
+++-    def __modify_schema__(cls, field_schema):
+++-        field_schema.update(type="string")
++++    def __get_pydantic_json_schema__(
++++        cls, schema: JsonSchemaValue, handler: GetJsonSchemaHandler
++++    ) -> JsonSchemaValue:
++++        schema = handler(schema)
++++        schema.update(type="string")
++++        return schema
+++ 
+++ 
+++ class BaseDocument(BaseModel):
+++@@ -32,11 +38,12 @@ class BaseDocument(BaseModel):
+++     created_at: datetime = Field(default_factory=datetime.utcnow)
+++     updated_at: datetime = Field(default_factory=datetime.utcnow)
+++     notes: Optional[str] = None
+++-    
+++-    class Config:
+++-        allow_population_by_field_name = True
+++-        arbitrary_types_allowed = True
+++-        json_encoders = {ObjectId: str}
++++
++++    model_config = ConfigDict(
++++        populate_by_name=True,
++++        arbitrary_types_allowed=True,
++++        json_encoders={ObjectId: str}
++++    )
+++ 
+++ 
+++ class Client(BaseDocument):
+++@@ -111,4 +118,4 @@ class KnowledgeBase(BaseDocument):
+++     entity_id: PyObjectId  # Reference to any entity
+++     entity_type: str  # client, property, job, visit, vendor
+++     content: str
+++-    embedding: List[float] = Field(default_factory=list)
+++\ No newline at end of file
++++    embedding: List[float] = Field(default_factory=list)
+++diff --git a/src/workflow/ai_receptionist_workflow.py b/src/workflow/ai_receptionist_workflow.py
+++index f1cda1b..fc1a2a0 100644
+++--- a/src/workflow/ai_receptionist_workflow.py
++++++ b/src/workflow/ai_receptionist_workflow.py
+++@@ -2,7 +2,6 @@
+++ """LangGraph workflow for AI Receptionist analysis."""
+++ 
+++ from langgraph.graph import StateGraph, END
+++-from langgraph.prebuilt import ToolExecutor
+++ 
+++ from src.models.workflow_models import WorkflowState
+++ from src.services.database_service import DatabaseService
+++@@ -67,4 +66,4 @@ class AIReceptionistWorkflow:
+++         
+++         # Run workflow
+++         result = await self.workflow.ainvoke(initial_state)
+++-        return result
++++        return result
+++\ No newline at end of file
+++diff --git a/uv.lock b/uv.lock
+++index 3598e70..4376103 100644
+++--- a/uv.lock
++++++ b/uv.lock
+++@@ -29,6 +29,7 @@ dependencies = [
+++     { name = "click" },
+++     { name = "colorama" },
+++     { name = "dill" },
++++    { name = "fastapi" },
+++     { name = "filetype" },
+++     { name = "frozenlist" },
+++     { name = "google-ai-generativelanguage" },
+++@@ -51,7 +52,6 @@ dependencies = [
+++     { name = "langchain-text-splitters" },
+++     { name = "langgraph" },
+++     { name = "langgraph-checkpoint" },
+++-    { name = "langgraph-prebuilt" },
+++     { name = "langgraph-sdk" },
+++     { name = "langsmith" },
+++     { name = "mando" },
+++@@ -93,6 +93,7 @@ dependencies = [
+++     { name = "tzdata" },
+++     { name = "urllib3" },
+++     { name = "uv" },
++++    { name = "uvicorn" },
+++     { name = "xxhash" },
+++     { name = "yarl" },
+++     { name = "zstandard" },
+++@@ -141,6 +142,7 @@ requires-dist = [
+++     { name = "click" },
+++     { name = "colorama" },
+++     { name = "dill" },
++++    { name = "fastapi", specifier = ">=0.117.1" },
+++     { name = "filetype" },
+++     { name = "flake8", marker = "extra == 'linting'" },
+++     { name = "frozenlist" },
+++@@ -165,7 +167,6 @@ requires-dist = [
+++     { name = "langchain-text-splitters" },
+++     { name = "langgraph" },
+++     { name = "langgraph-checkpoint" },
+++-    { name = "langgraph-prebuilt" },
+++     { name = "langgraph-sdk" },
+++     { name = "langsmith" },
+++     { name = "mando" },
+++@@ -219,6 +220,7 @@ requires-dist = [
+++     { name = "tzdata" },
+++     { name = "urllib3" },
+++     { name = "uv" },
++++    { name = "uvicorn", specifier = ">=0.37.0" },
+++     { name = "xxhash" },
+++     { name = "yarl" },
+++     { name = "zstandard" },
+++@@ -601,6 +603,20 @@ wheels = [
+++     { url = "https://files.pythonhosted.org/packages/36/f4/c6e662dade71f56cd2f3735141b265c3c79293c109549c1e6933b0651ffc/exceptiongroup-1.3.0-py3-none-any.whl", hash = "sha256:4d111e6e0c13d0644cad6ddaa7ed0261a0b36971f6d23e7ec9b4b9097da78a10", size = 16674, upload-time = "2025-05-10T17:42:49.33Z" },
+++ ]
+++ 
++++[[package]]
++++name = "fastapi"
++++version = "0.117.1"
++++source = { registry = "https://pypi.org/simple" }
++++dependencies = [
++++    { name = "pydantic" },
++++    { name = "starlette" },
++++    { name = "typing-extensions" },
++++]
++++sdist = { url = "https://files.pythonhosted.org/packages/7e/7e/d9788300deaf416178f61fb3c2ceb16b7d0dc9f82a08fdb87a5e64ee3cc7/fastapi-0.117.1.tar.gz", hash = "sha256:fb2d42082d22b185f904ca0ecad2e195b851030bd6c5e4c032d1c981240c631a", size = 307155, upload-time = "2025-09-20T20:16:56.663Z" }
++++wheels = [
++++    { url = "https://files.pythonhosted.org/packages/6d/45/d9d3e8eeefbe93be1c50060a9d9a9f366dba66f288bb518a9566a23a8631/fastapi-0.117.1-py3-none-any.whl", hash = "sha256:33c51a0d21cab2b9722d4e56dbb9316f3687155be6b276191790d8da03507552", size = 95959, upload-time = "2025-09-20T20:16:53.661Z" },
++++]
++++
+++ [[package]]
+++ name = "filetype"
+++ version = "1.2.0"
+++@@ -2633,6 +2649,19 @@ wheels = [
+++     { url = "https://files.pythonhosted.org/packages/b8/d9/13bdde6521f322861fab67473cec4b1cc8999f3871953531cf61945fad92/sqlalchemy-2.0.43-py3-none-any.whl", hash = "sha256:1681c21dd2ccee222c2fe0bef671d1aef7c504087c9c4e800371cfcc8ac966fc", size = 1924759, upload-time = "2025-08-11T15:39:53.024Z" },
+++ ]
+++ 
++++[[package]]
++++name = "starlette"
++++version = "0.48.0"
++++source = { registry = "https://pypi.org/simple" }
++++dependencies = [
++++    { name = "anyio" },
++++    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
++++]
++++sdist = { url = "https://files.pythonhosted.org/packages/a7/a5/d6f429d43394057b67a6b5bbe6eae2f77a6bf7459d961fdb224bf206eee6/starlette-0.48.0.tar.gz", hash = "sha256:7e8cee469a8ab2352911528110ce9088fdc6a37d9876926e73da7ce4aa4c7a46", size = 2652949, upload-time = "2025-09-13T08:41:05.699Z" }
++++wheels = [
++++    { url = "https://files.pythonhosted.org/packages/be/72/2db2f49247d0a18b4f1bb9a5a39a0162869acf235f3a96418363947b3d46/starlette-0.48.0-py3-none-any.whl", hash = "sha256:0764ca97b097582558ecb498132ed0c7d942f233f365b86ba37770e026510659", size = 73736, upload-time = "2025-09-13T08:41:03.869Z" },
++++]
++++
+++ [[package]]
+++ name = "structlog"
+++ version = "25.4.0"
+++@@ -2788,6 +2817,20 @@ wheels = [
+++     { url = "https://files.pythonhosted.org/packages/7a/01/4d44aacb9b02561fdbd53948ffc278b78c80e929debba4945809c4cf1295/uv-0.8.20-py3-none-win_arm64.whl", hash = "sha256:23222fd90d843d8c5650f2b3e297dbed4d05a4d28a5e99d017d73aebaa98bea4", size = 19560961, upload-time = "2025-09-22T23:02:21.791Z" },
+++ ]
+++ 
++++[[package]]
++++name = "uvicorn"
++++version = "0.37.0"
++++source = { registry = "https://pypi.org/simple" }
++++dependencies = [
++++    { name = "click" },
++++    { name = "h11" },
++++    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
++++]
++++sdist = { url = "https://files.pythonhosted.org/packages/71/57/1616c8274c3442d802621abf5deb230771c7a0fec9414cb6763900eb3868/uvicorn-0.37.0.tar.gz", hash = "sha256:4115c8add6d3fd536c8ee77f0e14a7fd2ebba939fed9b02583a97f80648f9e13", size = 80367, upload-time = "2025-09-23T13:33:47.486Z" }
++++wheels = [
++++    { url = "https://files.pythonhosted.org/packages/85/cd/584a2ceb5532af99dd09e50919e3615ba99aa127e9850eafe5f31ddfdb9a/uvicorn-0.37.0-py3-none-any.whl", hash = "sha256:913b2b88672343739927ce381ff9e2ad62541f9f8289664fa1d1d3803fa2ce6c", size = 67976, upload-time = "2025-09-23T13:33:45.842Z" },
++++]
++++
+++ [[package]]
+++ name = "xxhash"
+++ version = "3.5.0"
+++```
+++
++diff --git a/main.py b/main.py
++index 0442801..4fe76e0 100644
++--- a/main.py
+++++ b/main.py
++@@ -1,17 +1,57 @@
++ # ==================== main.py ====================
++ """
++ Main entry point for the AI Receptionist system.
++-"""
+++uvicorn main:app --reload
++ 
+++run_test.py -  To do Basic Tesing of the Agents
+++replicate_conversations.py - Run some conversations to see the results.
+++"""
+++import logging
+++import logging.config
+++from logging.handlers import RotatingFileHandler
++ import asyncio
++ import json
++ from fastapi import FastAPI, HTTPException
++ from pydantic import BaseModel
++ from typing import Dict, Any
++ 
+++
++ from src.workflow.workflow_runner import WorkflowRunner
++ from config.settings import settings
++ 
+++LOGGING_CONFIG = {
+++    "version": 1,
+++    "disable_existing_loggers": False,
+++    "formatters": {
+++        "default": {
+++            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+++        },
+++    },
+++    "handlers": {
+++        "default": {
+++            "level": "INFO",
+++            "formatter": "default",
+++            "class": "logging.StreamHandler",
+++        },
+++        "file": {
+++            "level": "INFO",
+++            "formatter": "default",
+++            "class": "logging.handlers.RotatingFileHandler",
+++            "filename": "./logs/ai_receptionist.log",
+++            "maxBytes": 10485760,
+++            "backupCount": 5,
+++        },
+++    },
+++    "root": {
+++        "level": "INFO",
+++        "handlers": ["default", "file"]
+++    },
+++}
+++
+++logging.config.dictConfig(LOGGING_CONFIG)
+++logger = logging.getLogger("ai_receptionist")
+++
+++# Initialize FastAPI
++ 
++ app = FastAPI(
++     title="AI Receptionist System",
++@@ -42,13 +82,13 @@ class CallResponse(BaseModel):
++ 
++ @app.get("/health")
++ async def health_check():
++-    """Health check endpoint."""
+++    print("""Health check endpoint.""")
++     return {"status": "healthy", "environment": settings.environment}
++ 
++ 
++ @app.post("/process-call", response_model=CallResponse)
++ async def process_call(request: CallRequest):
++-    """Process an incoming call through the AI Receptionist workflow."""
+++    logger.info("Process an incoming call through the AI Receptionist workflow.")
++     try:
++         call_data = {
++             "caller_phone": request.caller_phone,
++diff --git a/pyproject.toml b/pyproject.toml
++index cb44b8e..1605f65 100644
++--- a/pyproject.toml
+++++ b/pyproject.toml
++@@ -27,6 +27,7 @@ dependencies = [
++     "click",
++     "colorama",
++     "dill",
+++    "dotenv>=0.9.9",
++     "faker>=37.8.0",
++     "fastapi>=0.117.1",
++     "filetype",
++@@ -76,6 +77,7 @@ dependencies = [
++     "pymongo>=4.15.1",
++     "pytest>=8.4.2",
++     "pytest-asyncio>=1.2.0",
+++    "pytest-json-report>=1.5.0",
++     "pytest-mock>=3.15.1",
++     "python-dateutil",
++     "python-dotenv",
++@@ -91,6 +93,7 @@ dependencies = [
++     "sniffio",
++     "SQLAlchemy",
++     "structlog",
+++    "tabulate>=0.9.0",
++     "tenacity",
++     "typing-inspection",
++     "typing_extensions",
++diff --git a/simulated_conversations/20250929_201416_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_201416_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..bab3c5f
++--- /dev/null
+++++ b/simulated_conversations/20250929_201416_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 20:14:16
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** I apologize, but I'm having trouble processing your request right now.
+++- Intent: schedule_update
+++- Caller Type: client
+++- Next Action: continue_conversation
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/simulated_conversations/20250929_201729_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_201729_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..904ca69
++--- /dev/null
+++++ b/simulated_conversations/20250929_201729_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 20:17:29
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** I apologize, but I'm having trouble processing your request right now.
+++- Intent: schedule_update
+++- Caller Type: client
+++- Next Action: continue_conversation
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/simulated_conversations/20250929_202135_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_202135_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..b42f4fb
++--- /dev/null
+++++ b/simulated_conversations/20250929_202135_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 20:21:35
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** I apologize, but I'm having trouble processing your request right now.
+++- Intent: schedule_update
+++- Caller Type: client
+++- Next Action: continue_conversation
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/simulated_conversations/20250929_202412_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_202412_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..498a8eb
++--- /dev/null
+++++ b/simulated_conversations/20250929_202412_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 20:24:12
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** I apologize, but I'm having trouble processing your request right now.
+++- Intent: schedule_update
+++- Caller Type: client
+++- Next Action: continue_conversation
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/simulated_conversations/20250929_202501_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_202501_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..5cd2aa2
++--- /dev/null
+++++ b/simulated_conversations/20250929_202501_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 20:25:01
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** I apologize, but I'm having trouble processing your request right now.
+++- Intent: schedule_update
+++- Caller Type: client
+++- Next Action: continue_conversation
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/simulated_conversations/20250929_202628_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_202628_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..58c719c
++--- /dev/null
+++++ b/simulated_conversations/20250929_202628_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 20:26:28
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** 
+++- Intent: Unknown
+++- Caller Type: Unknown
+++- Next Action: None
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/simulated_conversations/20250929_204510_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_204510_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..f67f9da
++--- /dev/null
+++++ b/simulated_conversations/20250929_204510_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 20:45:10
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** None
+++- Intent: None
+++- Caller Type: None
+++- Next Action: None
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/simulated_conversations/20250929_204604_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_204604_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..2fa3c94
++--- /dev/null
+++++ b/simulated_conversations/20250929_204604_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 20:46:04
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** None
+++- Intent: None
+++- Caller Type: None
+++- Next Action: None
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/simulated_conversations/20250929_204657_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_204657_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..22e61a7
++--- /dev/null
+++++ b/simulated_conversations/20250929_204657_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 20:46:57
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** None
+++- Intent: None
+++- Caller Type: None
+++- Next Action: None
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/simulated_conversations/20250929_204937_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_204937_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..3cefc36
++--- /dev/null
+++++ b/simulated_conversations/20250929_204937_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 20:49:37
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** 
+++- Intent: Unknown
+++- Caller Type: Unknown
+++- Next Action: None
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/simulated_conversations/20250929_205534_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_205534_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..f9ca0f8
++--- /dev/null
+++++ b/simulated_conversations/20250929_205534_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 20:55:34
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** 
+++- Intent: Unknown
+++- Caller Type: Unknown
+++- Next Action: None
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/simulated_conversations/20250929_205753_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_205753_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..fe741e8
++--- /dev/null
+++++ b/simulated_conversations/20250929_205753_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 20:57:53
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** None
+++- Intent: None
+++- Caller Type: None
+++- Next Action: None
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/simulated_conversations/20250929_205853_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_205853_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..1967d69
++--- /dev/null
+++++ b/simulated_conversations/20250929_205853_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 20:58:53
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** 
+++- Intent: Unknown
+++- Caller Type: Unknown
+++- Next Action: None
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/simulated_conversations/20250929_210023_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_210023_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..0d93e9b
++--- /dev/null
+++++ b/simulated_conversations/20250929_210023_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 21:00:23
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** 
+++- Intent: Unknown
+++- Caller Type: Unknown
+++- Next Action: None
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/simulated_conversations/20250929_210345_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_210345_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..0e38d69
++--- /dev/null
+++++ b/simulated_conversations/20250929_210345_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 21:03:45
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** 
+++- Intent: Unknown
+++- Caller Type: Unknown
+++- Next Action: None
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/simulated_conversations/20250929_210537_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_210537_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..6721cd9
++--- /dev/null
+++++ b/simulated_conversations/20250929_210537_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 21:05:37
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** 
+++- Intent: Unknown
+++- Caller Type: Unknown
+++- Next Action: None
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/simulated_conversations/20250929_210715_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_210715_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..77b49ed
++--- /dev/null
+++++ b/simulated_conversations/20250929_210715_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 21:07:15
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** 
+++- Intent: Unknown
+++- Caller Type: Unknown
+++- Next Action: None
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/simulated_conversations/20250929_211107_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_211107_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..1526fdf
++--- /dev/null
+++++ b/simulated_conversations/20250929_211107_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 21:11:07
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** None
+++- Intent: None
+++- Caller Type: None
+++- Next Action: None
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/simulated_conversations/20250929_211247_appointment_scheduling_13388582100.md b/simulated_conversations/20250929_211247_appointment_scheduling_13388582100.md
++new file mode 100644
++index 0000000..1db3291
++--- /dev/null
+++++ b/simulated_conversations/20250929_211247_appointment_scheduling_13388582100.md
++@@ -0,0 +1,17 @@
+++# Conversation Log: Appointment Scheduling
+++
+++- **Caller Phone:** +13388582100
+++- **Call SID:** CA0000001000
+++- **Timestamp:** 2025-09-29 21:12:47
+++
+++## Conversation
+++
+++### Turn 1
+++**Caller:** Hi, I want to schedule an appointment for next week.
+++**AI Response:** None
+++- Intent: None
+++- Caller Type: None
+++- Next Action: None
+++
+++---
+++*Generated by Conversation Simulator*
++\ No newline at end of file
++diff --git a/src/models/database_models.py b/src/models/database_models.py
++index e7ace3c..4a5b560 100644
++--- a/src/models/database_models.py
+++++ b/src/models/database_models.py
++@@ -2,7 +2,7 @@
++ """Database models for MongoDB collections using Pydantic."""
++ 
++ from datetime import datetime
++-from typing import Optional, List
+++from typing import Optional, List, Any
++ from pydantic import BaseModel, Field, ConfigDict
++ from bson import ObjectId
++ 
++@@ -15,10 +15,21 @@ class PyObjectId(ObjectId):
++         yield cls.validate
++ 
++     @classmethod
++-    def validate(cls, v):
++-        if not ObjectId.is_valid(v):
+++    def validate(cls, v: Any, info: Any = None):
+++        """
+++        Accept the optional 'info' arg that Pydantic v2 may supply.
+++        This keeps backward compatible behavior for v1 and v2.
+++        """
+++        if isinstance(v, ObjectId):
+++            return v
+++        try:
+++            # Coerce to string first to handle ObjectId objects and strings
+++            v_str = str(v)
+++            if not ObjectId.is_valid(v_str):
+++                raise ValueError("Invalid ObjectId")
+++            return ObjectId(v_str)
+++        except Exception:
++             raise ValueError("Invalid ObjectId")
++-        return ObjectId(v)
++ 
++     @classmethod
++     def __get_pydantic_json_schema__(cls, schema, handler):
++@@ -42,6 +53,14 @@ class BaseDocument(BaseModel):
++         json_encoders={ObjectId: str},
++     )
++ 
+++class AgentActionPrompt(BaseDocument):
+++    """ Agent Action Prompts model."""
+++
+++    agent: str
+++    action: str
+++    prompt: str
+++    active: bool = True
+++    level: int
++ 
++ class Client(BaseDocument):
++     """Client model."""
++diff --git a/src/models/workflow_models.py b/src/models/workflow_models.py
++index e46f186..9eb1ecc 100644
++--- a/src/models/workflow_models.py
+++++ b/src/models/workflow_models.py
++@@ -25,6 +25,7 @@ class Intent(str, Enum):
++     COMPLAINT = "complaint"
++     SALES_INQUIRY = "sales_inquiry"
++     SCHEDULE_UPDATE = "schedule_update"
+++    PROFILE_UPDATE = "profile_update"
++     OTHER = "other"
++ 
++ 
++@@ -55,5 +56,10 @@ class WorkflowState(BaseModel):
++     processed: bool = False
++     error_message: Optional[str] = None
++     
+++    turn_count: Optional[int] = 0
+++    time_details: Optional[str] = None
+++    
+++    agent_prompt: Optional[str] = None
+++    
++     class Config:
++         use_enum_values = True
++\ No newline at end of file
++diff --git a/src/nodes/context_builder.py b/src/nodes/context_builder.py
++index d79f804..a1e07a6 100644
++--- a/src/nodes/context_builder.py
+++++ b/src/nodes/context_builder.py
++@@ -12,7 +12,7 @@ class ContextBuilder:
++         self.context_service = context_service
++     
++     async def __call__(self, state: WorkflowState) -> WorkflowState:
++-        """Build context based on caller type."""
+++        print("""Build context based on caller type.""")
++         try:
++             if state.caller_type == CallerType.CLIENT and state.client:
++                 state.context_data = await self.context_service.build_client_context(state.client)
++diff --git a/src/nodes/identity_checker.py b/src/nodes/identity_checker.py
++index 91b8322..e3dad59 100644
++--- a/src/nodes/identity_checker.py
+++++ b/src/nodes/identity_checker.py
++@@ -1,10 +1,14 @@
++ # ==================== src/nodes/identity_checker.py ====================
++ """Identity checker node for caller identification."""
++-
+++import logging
+++# Get a logger instance for your module
+++logger = logging.getLogger(__name__)
+++# Set the logging level (e.g., INFO, DEBUG, WARNING, ERROR, CRITICAL)
+++logger.setLevel(logging.INFO)
+++import re
++ from src.models.workflow_models import WorkflowState, CallerType
++ from src.services.database_service import DatabaseService
++ 
++-
++ class IdentityChecker:
++     """Node for identifying callers."""
++     
++@@ -12,28 +16,38 @@ class IdentityChecker:
++         self.db_service = db_service
++     
++     async def __call__(self, state: WorkflowState) -> WorkflowState:
+++        logger.info('Executing IdentityChecker')
+++        logger.info(f"Inital state: {state}")
++         """Check caller identity."""
++         if not state.caller_phone:
++             state.caller_type = CallerType.LEAD
++             return state
++         
+++        caller_phone = self.normalize_phone(state.caller_phone)
+++        
++         try:
++             # Check if caller is a client
++-            client = await self.db_service.find_client_by_phone(state.caller_phone)
+++            logger.info('Checking if caller is a client')
+++            client = await self.db_service.find_client_by_phone(caller_phone)
+++            logger.info('Checking Done')
++             if client:
+++                logger.info('Caller is a client')
++                 state.caller_type = CallerType.CLIENT
++                 state.client = client
++                 state.caller_profile = client.dict()
+++                logger.info(state)
++                 return state
++-            
+++            else:
+++                logger.info('Caller is not a client')
++             # Check if caller is a vendor
++-            vendor = await self.db_service.find_vendor_by_phone(state.caller_phone)
+++            vendor = await self.db_service.find_vendor_by_phone(caller_phone)
++             if vendor:
++                 state.caller_type = CallerType.VENDOR
++                 state.vendor = vendor
++                 state.caller_profile = vendor.dict()
++                 return state
++-            
+++            else:
+++                logger.info('Caller is not a vendor')
++             # Default to lead
++             state.caller_type = CallerType.LEAD
++             
++@@ -41,4 +55,12 @@ class IdentityChecker:
++             state.error_message = f"Identity check failed: {str(e)}"
++             state.caller_type = CallerType.LEAD
++         
++-        return state
++\ No newline at end of file
+++        return state
+++    
+++    def normalize_phone(self, number: str) -> str:
+++        digits = re.sub(r"\D", "", number)  # Remove all non-digits
+++        if len(digits) == 10:
+++            return f"{digits[0:3]}-{digits[3:6]}-{digits[6:10]}"
+++        elif len(digits) == 11 and digits[0] == "1":  # +1 prefix
+++                return f"{digits[1:4]}-{digits[4:7]}-{digits[7:11]}"
+++        raise ValueError("Phone must have 10 or 11 digits")
++\ No newline at end of file
++diff --git a/src/nodes/intent_analyzer.py b/src/nodes/intent_analyzer.py
++index 1abdfd7..e5dc189 100644
++--- a/src/nodes/intent_analyzer.py
+++++ b/src/nodes/intent_analyzer.py
++@@ -1,50 +1,88 @@
++ # ==================== src/nodes/intent_analyzer.py ====================
++-"""Intent analyzer node."""
+++"""Intent analyzer node with Google Gemini integration."""
+++import logging
+++# Get a logger instance for your module
+++logger = logging.getLogger(__name__)
+++# Set the logging level (e.g., INFO, DEBUG, WARNING, ERROR, CRITICAL)
+++logger.setLevel(logging.INFO)
++ 
++ import re
+++import os
+++import json
+++import google.generativeai as genai
++ from src.models.workflow_models import WorkflowState, Intent
+++from dotenv import load_dotenv
+++from src.services.database_service import DatabaseService
++ 
+++load_dotenv()
++ 
++ class IntentAnalyzer:
++-    """Node for analyzing caller intent."""
+++    """Node for analyzing caller intent using Google Gemini."""
++     
++-    def __init__(self):
++-        self.intent_patterns = {
++-            Intent.STATUS_CHECK: [
++-                r"status", r"progress", r"update", r"how.*going", r"when.*complete"
++-            ],
++-            Intent.SERVICE_REQUEST: [
++-                r"need.*service", r"repair", r"fix", r"maintenance", r"problem"
++-            ],
++-            Intent.COMPLAINT: [
++-                r"complain", r"issue", r"problem", r"dissatisfied", r"unhappy"
++-            ],
++-            Intent.SALES_INQUIRY: [
++-                r"price", r"cost", r"quote", r"estimate", r"how much"
++-            ]
++-        }
+++    def __init__(self, db_service: DatabaseService):
+++        self.db_service = db_service
+++
+++        # Configure Google AI with API key
+++        api_key = os.getenv("LLM__GOOGLE_API_KEY")
+++        if not api_key:
+++            raise ValueError("API_KEY environment variable is required")
+++        
+++        genai.configure(api_key=api_key)
+++
+++        self.model_name = os.getenv("LLM__MODEL_NAME")
+++        if not self.model_name:
+++            raise ValueError("MODEL environment variable is required")
+++        
+++    async def _create_intent_prompt(self, state: WorkflowState) -> WorkflowState:
+++        print("""Create a structured prompt for Gemini to analyze intent.""")
+++        agent_prompt = await self.db_service.find_agent_action_prompt('receptionist','intent_analysis',1)
+++        
+++        # Build prompt dynamically with context
+++        prompt = f"""
+++            You are an AI receptionist assistant having a phone conversation. 
+++            {agent_prompt}.
+++
+++            Current Context:
+++            - Caller Type: {state.caller_type}
+++            - Caller Speech: {state.speech_text}
+++        """
+++
+++        state.agent_prompt = prompt
+++        return state
+++    
+++    async def _analyze_with_gemini(self, state: WorkflowState) -> str:
+++        print("""Use Google Gemini to analyze intent.""")
+++        try:
+++            state = await self._create_intent_prompt(state)
+++
+++            # Configure Gemini model
+++            model = genai.GenerativeModel(self.model_name)
+++            
+++            # Generate response
+++            response = model.generate_content(state.agent_prompt)
+++            
+++            # Parse response
+++            intent_value = response.text.strip().lower()
+++    
+++            return intent_value
+++            
+++        except Exception as e:
+++            print(f"⚠️ Gemini intent analysis failed: {e}")
+++            return "Customer Service"
++     
++     async def __call__(self, state: WorkflowState) -> WorkflowState:
++-        """Analyze caller intent from speech."""
+++        """Analyze caller intent from speech using Gemini + regex fallback."""
++         if not state.speech_text:
++-            state.intent = Intent.GENERAL_INQUIRY
+++            state.intent = "Customer Service"
++             return state
++         
++-        text = state.speech_text.lower()
++-        
++         try:
++-            # Check patterns for each intent
++-            for intent, patterns in self.intent_patterns.items():
++-                for pattern in patterns:
++-                    if re.search(pattern, text):
++-                        state.intent = intent
++-                        return state
++-            
++-            # Default intent
++-            state.intent = Intent.GENERAL_INQUIRY
+++            # Primary: Use Gemini for intent analysis
+++            state.intent = await self._analyze_with_gemini(state)
++             
++         except Exception as e:
++-            state.error_message = f"Intent analysis failed: {str(e)}"
++-            state.intent = Intent.GENERAL_INQUIRY
+++            # Fallback: Use regex patterns
+++            state.error_message = f"Intent analysis error: {str(e)}"
+++            state.intent = self._fallback_regex_analysis(state.speech_text)
++         
++-        return state    
++\ No newline at end of file
+++        return state
++\ No newline at end of file
++diff --git a/src/nodes/response_generator.py b/src/nodes/response_generator.py
++index 7f65cec..5c4578e 100644
++--- a/src/nodes/response_generator.py
+++++ b/src/nodes/response_generator.py
++@@ -1,82 +1,147 @@
++ # ==================== src/nodes/response_generator.py ====================
++-"""Response generator node."""
+++"""Response generator node using Google Gemini."""
++ 
++ import html
++-from typing import Dict, Any
++-
+++import os
+++import google.generativeai as genai
++ from src.models.workflow_models import WorkflowState, CallerType, Intent
+++from config.settings import settings
+++from dotenv import load_dotenv
+++from src.services.database_service import DatabaseService
++ 
+++load_dotenv()
++ 
++ class ResponseGenerator:
++-    """Node for generating responses."""
++-    
+++    """Node for generating responses with Google Gemini."""
+++        
++     def __init__(self):
++-        self.templates = {
++-            CallerType.CLIENT: {
++-                Intent.STATUS_CHECK: "Let me check the status of your current projects...",
++-                Intent.SERVICE_REQUEST: "I'd be happy to help you with a service request...",
++-                Intent.COMPLAINT: "I understand your concern. Let me look into this for you...",
++-                Intent.GENERAL_INQUIRY: "Hello! How can I assist you with your property today?"
++-            },
++-            CallerType.VENDOR: {
++-                Intent.STATUS_CHECK: "Let me check your current job assignments...",
++-                Intent.GENERAL_INQUIRY: "Hello! What can I help you with regarding your jobs?"
++-            },
++-            CallerType.LEAD: {
++-                Intent.SALES_INQUIRY: "Thank you for your interest in our services...",
++-                Intent.GENERAL_INQUIRY: "Welcome! How can we help you today?"
++-            }
++-        }
++-    
+++        self.db_service = DatabaseService
+++
+++        # Configure Gemini
+++        api_key = os.getenv("LLM__GOOGLE_API_KEY")
+++        if not api_key:
+++            raise ValueError("API_KEY environment variable is required")
+++        
+++        genai.configure(api_key=api_key)
+++
+++        self.model_name = os.getenv("LLM__MODEL_NAME")
+++        if not self.model_name:
+++            raise ValueError("MODEL environment variable is required")
+++
++     def _escape_output(self, text: str) -> str:
++         """Escape text for safe display."""
++         return html.escape(text)
++-    
+++
++     async def __call__(self, state: WorkflowState) -> WorkflowState:
++-        """Generate response based on context and intent."""
+++        """Generate response using Gemini based on context and intent."""
++         try:
++-            # Get base template
++-            caller_templates = self.templates.get(state.caller_type, {})
++-            base_response = caller_templates.get(
++-                state.intent, 
++-                "Hello! How can I help you today?"
++-            )
++-            
++-            # Enhance response with context
++-            enhanced_response = self._enhance_response(base_response, state)
+++            agent_prompt = await self.db_service.find_agent_action_prompt('receptionist','intent_analysis',1)
+++            state.agent_prompt = agent_prompt.prompt
++             
++-            # Escape for safe output
++-            state.response_text = self._escape_output(enhanced_response)
++-            state.next_action = self._determine_next_action(state)
+++            # Initialize turn count if not present
+++            if not hasattr(state, 'turn_count'):
+++                state.turn_count = 0
+++            state.turn_count += 1
++             
+++            response = await self._generate_with_gemini(state)
+++
+++            # If Gemini fails or empty string, fall back to templates
+++            if not response:
+++                response = self._get_fallback_response(state)
+++
+++            # Assign response back into workflow state
+++            state.response_text = self._escape_output(response)
+++            state.next_action = 'WIP'
+++
++         except Exception as e:
++             state.error_message = f"Response generation failed: {str(e)}"
++             state.response_text = "I apologize, but I'm having trouble processing your request right now."
++-        
+++            state.next_action = "continue_conversation"
+++
++         state.processed = True
++         return state
++-    
++-    def _enhance_response(self, base_response: str, state: WorkflowState) -> str:
++-        """Enhance response with contextual information."""
++-        if state.caller_type == CallerType.CLIENT and state.context_data.get("properties"):
++-            property_count = len(state.context_data["properties"])
++-            if property_count > 0:
++-                base_response += f" I see you have {property_count} property(ies) with us."
++-        
++-        elif state.caller_type == CallerType.VENDOR and state.context_data.get("jobs"):
++-            job_count = len(state.context_data["jobs"])
++-            if job_count > 0:
++-                base_response += f" You currently have {job_count} job(s) assigned."
++-        
++-        return base_response
++-    
+++
+++    async def _generate_with_gemini(self, state: WorkflowState) -> str:
+++        """Ask Gemini to generate a contextual, intent-aware response."""
+++        try:
+++            # Build conversation history
+++            conversation_history = ""
+++            if hasattr(state, 'conversation_history') and state.conversation_history:
+++                history_items = []
+++                for i, turn in enumerate(state.conversation_history[-3:]):  # Last 3 turns
+++                    history_items.append(f"Turn {i+1}: Caller said '{turn.get('user_input', '')}' -> AI responded '{turn.get('response', '')}'")
+++                conversation_history = "\n".join(history_items)
+++            
+++            # Build prompt dynamically with context
+++            prompt = f"""
+++                You are an AI receptionist assistant having a phone conversation. 
+++                {WorkflowState.agent_prompt}.
+++
+++                Current Context:
+++                - Caller Type: {state.caller_type.value}
+++                - Turn Number: {state.turn_count}
+++                - Caller Speech: "{state.speech_text}"
+++
+++                Previous Conversation:
+++                {conversation_history}
+++
+++                Response:
+++            """
+++            
+++            # Configure model with specific parameters for consistency
+++            model = genai.GenerativeModel(
+++                self.model_name,
+++                generation_config={
+++                    "temperature": 0.7,
+++                    "max_output_tokens": 150,
+++                    "stop_sequences": ["\n\n", "."]
+++                }
+++            )
+++            
+++            response = model.generate_content(prompt)
+++            
+++            result = response.text.strip() if response and response.text else None
+++            
+++            # Update conversation history
+++            if not hasattr(state, 'conversation_history'):
+++                state.conversation_history = []
+++            
+++            state.conversation_history.append({
+++                'user_input': state.speech_text,
+++                'response': result,
+++                'intent': result,
+++                'turn': state.turn_count
+++            })
+++            
+++            # Keep only last 5 turns to prevent context overflow
+++            if len(state.conversation_history) > 5:
+++                state.conversation_history = state.conversation_history[-5:]
+++
+++            return result
+++
+++        except Exception as e:
+++            print(f"⚠️ Gemini failed: {e}")
+++            return None
+++
+++    def _get_fallback_response(self, state: WorkflowState) -> str:
+++        """Fallback template when Gemini fails."""
+++        caller_templates = self.templates.get(state.caller_type, {})
+++        return caller_templates.get(state.intent, "Hello! How can I help you today?")
+++
++     def _determine_next_action(self, state: WorkflowState) -> str:
++-        """Determine the next action to take."""
+++        """Decide what the workflow should do next."""
++         if state.intent == Intent.SERVICE_REQUEST:
++             return "schedule_service"
++         elif state.intent == Intent.STATUS_CHECK:
++             return "provide_status"
++         elif state.intent == Intent.COMPLAINT:
++             return "escalate_to_human"
+++        elif state.intent == Intent.PROFILE_UPDATE:
+++            return "authenticate_profile_update"
+++        elif state.intent == Intent.SCHEDULE_UPDATE:
+++            # Check if we have time details to confirm appointment
+++            if hasattr(state, 'time_details') and state.time_details:
+++                return "confirm_appointment"
+++            return "reschedule_job"
++         else:
++             return "continue_conversation"
++\ No newline at end of file
++diff --git a/src/services/context_service.py b/src/services/context_service.py
++index 4f9b4b8..6cfa742 100644
++--- a/src/services/context_service.py
+++++ b/src/services/context_service.py
++@@ -3,60 +3,64 @@
++ 
++ from typing import Dict, Any, List
++ from bson import ObjectId
++-
+++import sys
++ from src.models.workflow_models import WorkflowState, CallerType
++ from src.models.database_models import Client, Vendor
++ from .database_service import DatabaseService
++ 
++ 
++ class ContextService:
++-    """Service for building caller context."""
++     
++     def __init__(self, db_service: DatabaseService):
+++        print("Initializing ContextService")
++         self.db_service = db_service
++     
++     async def build_client_context(self, client: Client) -> Dict[str, Any]:
++-        """Build comprehensive context for a client."""
++-        context = {
++-            "client": client.dict(),
++-            "properties": [],
++-            "jobs": [],
++-            "visits": [],
++-            "vendors": []
++-        }
++-        
++-        # Get client properties
++-        properties = await self.db_service.get_client_properties(client.id)
++-        context["properties"] = [prop.dict() for prop in properties]
++-        
++-        # Get jobs for all properties
++-        all_jobs = []
++-        vendor_ids = set()
++-        
++-        for prop in properties:
++-            jobs = await self.db_service.get_property_jobs(prop.id)
++-            all_jobs.extend(jobs)
++-            vendor_ids.update(job.vendor_id for job in jobs)
++-        
++-        context["jobs"] = [job.dict() for job in all_jobs]
++-        
++-        # Get visits for all jobs
++-        all_visits = []
++-        for job in all_jobs:
++-            visits = await self.db_service.get_job_visits(job.id)
++-            all_visits.extend(visits)
++-        
++-        context["visits"] = [visit.dict() for visit in all_visits]
++-        
++-        # Get vendor information
++-        vendors = []
++-        for vendor_id in vendor_ids:
++-            vendor_doc = await self.db_service.db.vendors.find_one({"_id": vendor_id})
++-            if vendor_doc:
++-                vendors.append(Vendor(**vendor_doc).dict())
++-        
++-        context["vendors"] = vendors
++-        
+++        print("""Build comprehensive context for a client.""")
+++        try:
+++            context = {
+++                "client": client.dict(),
+++                "properties": [],
+++                "jobs": [],
+++                "visits": [],
+++                "vendors": []
+++            }
+++            
+++            # Get client properties
+++            properties = await self.db_service.get_client_properties(client.id)
+++            context["properties"] = [prop.dict() for prop in properties]
+++            
+++            # Get jobs for all properties
+++            all_jobs = []
+++            vendor_ids = set()
+++            
+++            for prop in properties:
+++                jobs = await self.db_service.get_property_jobs(prop.id)
+++                all_jobs.extend(jobs)
+++                vendor_ids.update(job.vendor_id for job in jobs)
+++            
+++            context["jobs"] = [job.dict() for job in all_jobs]
+++            
+++            # Get visits for all jobs
+++            all_visits = []
+++            for job in all_jobs:
+++                visits = await self.db_service.get_job_visits(job.id)
+++                all_visits.extend(visits)
+++            
+++            context["visits"] = [visit.dict() for visit in all_visits]
+++            
+++            # Get vendor information
+++            vendors = []
+++            for vendor_id in vendor_ids:
+++                vendor_doc = await self.db_service.db.vendors.find_one({"_id": vendor_id})
+++                if vendor_doc:
+++                    vendors.append(Vendor(**vendor_doc).dict())
+++            
+++            context["vendors"] = vendors
+++        except Exception as e:
+++            print (f"Errror Build comprehensive context for a client: {str(e)}")
+++            sys.exit(1)  
+++
++         return context
++     
++     async def build_vendor_context(self, vendor: Vendor) -> Dict[str, Any]:
++diff --git a/src/services/database_service.py b/src/services/database_service.py
++index 6aa2174..511e352 100644
++--- a/src/services/database_service.py
+++++ b/src/services/database_service.py
++@@ -6,10 +6,10 @@ import html
++ from typing import Optional, List, Dict, Any
++ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
++ from bson import ObjectId
++-
+++import sys
++ from config.settings import settings
++ from src.models.database_models import (
++-    Client, Property, Job, Visit, Vendor, KnowledgeBase
+++    Client, Property, Job, Visit, Vendor, KnowledgeBase, AgentActionPrompt
++ )
++ 
++ 
++@@ -41,14 +41,47 @@ class DatabaseService:
++                 sanitized[key] = value
++         return sanitized
++     
+++    async def find_agent_action_prompt(self, agent: str, action: str, level: int = 1) -> str:
+++        print("Searching for prompt:", repr(agent), repr(action), repr(level))
+++        try:
+++            result = await self.db.agent_action_prompts.find_one({"agent": agent, "action": action, "level": level, "active": True}, {"_id": 0, "agent": 0, "action": 0, "level": 0, "active": 0})
+++            print("Searching for prompt (repr):", repr(agent), repr(action), repr(level))
+++            print("DB name:", getattr(self.db, 'name', '<unknown>'))
+++            print("Collections:", await self.db.list_collection_names())
+++            print("Result:", result)
+++            result = result if result else None
+++        except Exception as e:
+++            print (f"Errror Finding Agent Action Prompt: {str(e)}")
+++            sys.exit(1)    
+++
+++        return result    
+++
++     async def find_client_by_phone(self, phone: str) -> Optional[Client]:
++-        """Find client by phone number."""
++-        result = await self.db.clients.find_one({"phone": phone})
++-        return Client(**result) if result else None
+++        """
+++           Find client by phone number.
+++           The ** is Python's dictionary unpacking operator.It converts dictionary key-value pairs into named arguments
+++        """
+++        try:
+++            result = await self.db.clients.find_one({"phone": phone}, {"embeddings": 0})
+++            print("Searching for phone (repr):", repr(phone))
+++            print("Type:", type(phone))
+++            print("DB name:", getattr(self.db, 'name', '<unknown>'))
+++            print("Collections:", await self.db.list_collection_names())
+++            print("Result:", result)
+++            result = Client(**result) if result else None
+++        except Exception as e:
+++            print (f"Errror Finding Client: {str(e)}")
+++            sys.exit(1)    
+++
+++        return result
++     
++     async def find_vendor_by_phone(self, phone: str) -> Optional[Vendor]:
++         """Find vendor by phone number."""
++         result = await self.db.vendors.find_one({"phone": phone})
+++        print("Searching for phone (repr):", repr(phone))
+++        print("Type:", type(phone))
+++        print("DB name:", getattr(self.db, 'name', '<unknown>'))
+++        print("Collections:", await self.db.list_collection_names())
++         return Vendor(**result) if result else None
++     
++     async def get_client_properties(self, client_id: ObjectId) -> List[Property]:
++diff --git a/src/services/embedding_service.py b/src/services/embedding_service.py
++index dcd3ec8..0dbba3d 100644
++--- a/src/services/embedding_service.py
+++++ b/src/services/embedding_service.py
++@@ -3,25 +3,31 @@
++ 
++ import os
++ import re
+++from dotenv import load_dotenv
++ from typing import List, Optional
++ import google.generativeai as genai
++ from google.generativeai.types import EmbedContentResponse
++ 
++ from config.settings import settings
++ 
+++# Load .env into environment (default: project root directory)
+++load_dotenv()
++ 
++ class EmbeddingService:
++     """Service for text embedding using Google's text-embedding-004 model."""
++     
++     def __init__(self):
++         # Configure Google AI with API key
++-        api_key = os.getenv("GOOGLE_API_KEY")
+++        api_key = os.getenv("LLM__GOOGLE_API_KEY")
++         if not api_key:
++-            raise ValueError("GOOGLE_API_KEY environment variable is required")
+++            raise ValueError("API_KEY environment variable is required")
++         
++         genai.configure(api_key=api_key)
++-        self.model_name = "models/text-embedding-004"
++-        
+++
+++        self.model_name = os.getenv("LLM__MODEL_NAME")
+++        if not self.model_name:
+++            raise ValueError("MODEL environment variable is required")
+++
++         # Verify model is available
++         try:
++             # Test with a simple embedding
++diff --git a/src/utilities/generate_test_data.py b/src/utilities/generate_test_data.py
++index 1f5d4c8..1b2d9f1 100644
++--- a/src/utilities/generate_test_data.py
+++++ b/src/utilities/generate_test_data.py
++@@ -4,6 +4,7 @@ import faker
++ import os
++ import json
++ import sys
+++from bson import ObjectId
++ 
++ from datetime import datetime, timedelta
++ from pymongo import MongoClient
++@@ -154,7 +155,7 @@ def generate_vendors(n=25):
++     vendors = []
++     for _ in range(n):
++         vendors.append({
++-            "_id": generate_guid(),
+++            "_id": ObjectId(),
++             "name": fake.company(),
++             "contact_person": fake.name(),
++             "phone": fake.phone_number(),
++@@ -166,7 +167,7 @@ def generate_vendors(n=25):
++             "zip": fake.zipcode(),
++             "country": "USA",
++             "service_type": random.choice(["residential_cleaning", "commercial_cleaning"]),
++-            "notes": f"Open {random.choice(['Mon–Fri', 'Mon–Sat'])} {random.choice(['8am–5pm', '9am–6pm'])}. {random.choice(['Eco-friendly products available.', 'Specializes in deep cleaning.', 'Discounts for recurring clients.'])}"
+++            "notes": f"Business Hours: {get_vendor_business_hours()}. Services: {get_vendor_services()}"
++         })
++     return vendors
++ 
++@@ -175,7 +176,7 @@ def generate_clients(n=25, vendors=[]):
++     clients, properties, jobs, visits, kb = [], [], [], [], []
++     
++     for _ in range(n):
++-        client_id = generate_guid()
+++        client_id = ObjectId()
++         client_city = fake.city()
++         client = {
++             "_id": client_id,
++@@ -191,15 +192,17 @@ def generate_clients(n=25, vendors=[]):
++             "notes": get_client_notes()
++         }
++         clients.append(client)
+++        kb_id = ObjectId()
++         kb.append({
++-            "_id": client_id,
+++            "_id": kb_id, 
+++            "entity_id": client_id,
++             "content": f"Client {client['name']} in {client_city}. Notes: {client['notes']}",
++             "embedding": []
++         })
++ 
++         # Properties
++         for _ in range(random.randint(2, 5)):
++-            property_id = generate_guid()
+++            property_id = ObjectId()
++             property_obj = {
++                 "_id": property_id,
++                 "client_id": client_id,
++@@ -209,13 +212,15 @@ def generate_clients(n=25, vendors=[]):
++                 "state": fake.state_abbr(),
++                 "zip": fake.zipcode(),
++                 "country": "USA",
++-                "property_type": random.choice(["residential", "commercial"]),
+++                "property_type": random.choice(["residential", "commercial", "residential/commercial"]),
++                 "size": f"{random.randint(800, 5000)} sqft",
++                 "notes": get_property_notes()
++             }
++             properties.append(property_obj)
+++            kb_id = ObjectId()
++             kb.append({
++-                "_id": property_id,
+++                "_id": kb_id,
+++                "entity_id": property_id,
++                 "content": f"Property in {client_city}, type {property_obj['property_type']}, size {property_obj['size']}. Notes: {property_obj['notes']}",
++                 "embedding": []
++             })
++@@ -225,7 +230,7 @@ def generate_clients(n=25, vendors=[]):
++             active_job_index = random.randint(0, num_jobs - 1)
++ 
++             for j in range(num_jobs):
++-                job_id = generate_guid()
+++                job_id = ObjectId()
++                 vendor = random.choice([v for v in vendors if v["city"] == client_city] or vendors)
++                 scheduled_date = datetime.now() + timedelta(days=random.randint(1, 30))
++                 status = "in-progress" if j == active_job_index else "completed"
++@@ -246,14 +251,16 @@ def generate_clients(n=25, vendors=[]):
++                     "notes": get_job_notes()
++                 }
++                 jobs.append(job_obj)
+++                kb_id = ObjectId()
++                 kb.append({
++-                    "_id": job_id,
+++                    "_id": kb_id,
+++                    "entity_id": job_id,
++                     "content": f"Job {job_obj['title']} for property {property_id}. Status: {status}. Notes: {job_obj['notes']}",
++                     "embedding": []
++                 })
++ 
++                 # Visits
++-                visit_id = generate_guid()
+++                visit_id = ObjectId()
++                 visit_obj = {
++                     "_id": visit_id,
++                     "job_id": job_id,
++@@ -264,8 +271,12 @@ def generate_clients(n=25, vendors=[]):
++                     "notes": get_visit_notes()
++                 }
++                 visits.append(visit_obj)
+++
+++                kb_id = ObjectId()
++                 kb.append({
++-                    "_id": visit_id,
+++                    "_id": kb_id,
+++                    "entity_id": visit_id,
+++                    "entity_type": "visit",
++                     "content": f"Visit for job {job_id} on {visit_obj['visit_date']} by {visit_obj['technician_name']}. Status: {visit_obj['status']}. Notes: {visit_obj['notes']}",
++                     "embedding": []
++                 })
++diff --git a/src/workflow/ai_receptionist_workflow.py b/src/workflow/ai_receptionist_workflow.py
++index fc1a2a0..92e3d20 100644
++--- a/src/workflow/ai_receptionist_workflow.py
+++++ b/src/workflow/ai_receptionist_workflow.py
++@@ -1,5 +1,10 @@
++ # ==================== src/workflow/ai_receptionist_workflow.py ====================
++ """LangGraph workflow for AI Receptionist analysis."""
+++import logging
+++# Get a logger instance for your module
+++logger = logging.getLogger(__name__)
+++# Set the logging level (e.g., INFO, DEBUG, WARNING, ERROR, CRITICAL)
+++logger.setLevel(logging.INFO)
++ 
++ from langgraph.graph import StateGraph, END
++ 
++@@ -22,7 +27,7 @@ class AIReceptionistWorkflow:
++         # Initialize nodes
++         self.identity_checker = IdentityChecker(self.db_service)
++         self.context_builder = ContextBuilder(self.context_service)
++-        self.intent_analyzer = IntentAnalyzer()
+++        self.intent_analyzer = IntentAnalyzer(self.db_service)
++         self.response_generator = ResponseGenerator()
++         
++         # Build workflow
++@@ -34,14 +39,14 @@ class AIReceptionistWorkflow:
++         
++         # Add nodes
++         workflow.add_node("identity_check", self.identity_checker)
++-        workflow.add_node("context_build", self.context_builder)
+++        #workflow.add_node("context_build", self.context_builder)
++         workflow.add_node("intent_analysis", self.intent_analyzer)
++         workflow.add_node("response_generation", self.response_generator)
++         
++         # Define edges
++         workflow.set_entry_point("identity_check")
++-        workflow.add_edge("identity_check", "context_build")
++-        workflow.add_edge("context_build", "intent_analysis")
+++        workflow.add_edge("identity_check", "intent_analysis")
+++        #workflow.add_edge("context_build", "intent_analysis")
++         workflow.add_edge("intent_analysis", "response_generation")
++         workflow.add_edge("response_generation", END)
++         
++@@ -56,8 +61,9 @@ class AIReceptionistWorkflow:
++         await self.db_service.disconnect()
++     
++     async def process_call(self, call_data: dict) -> WorkflowState:
++-        """Process an incoming call through the workflow."""
+++        logger.info("Processing the call.")
++         # Create initial state
+++
++         initial_state = WorkflowState(
++             call_sid=call_data.get("call_sid"),
++             caller_phone=call_data.get("caller_phone"),
++diff --git a/src/workflow/workflow_runner.py b/src/workflow/workflow_runner.py
++index 6614930..06d5bed 100644
++--- a/src/workflow/workflow_runner.py
+++++ b/src/workflow/workflow_runner.py
++@@ -1,5 +1,10 @@
++ # ==================== src/workflow/workflow_runner.py ====================
++ """Workflow Runner for AI Receptionist. Command-line interface and programmatic runner for the workflow."""
+++import logging
+++# Get a logger instance for your module
+++logger = logging.getLogger(__name__)
+++# Set the logging level (e.g., INFO, DEBUG, WARNING, ERROR, CRITICAL)
+++logger.setLevel(logging.INFO)
++ 
++ import asyncio
++ import json
++@@ -22,14 +27,18 @@ class WorkflowRunner:
++             await self.workflow.initialize()
++             
++             result = await self.workflow.process_call(call_data)
+++            logger.info(f"Workflow result intent: {result}")         
+++            caller_type = result.get('caller_type', 'lead')
+++            logger.info(f"Workflow result caller type: {caller_type}")
+++
++             
++             return {
++                 "success": True,
++-                "caller_type": result.caller_type,
++-                "intent": result.intent,
++-                "response": result.response_text,
++-                "next_action": result.next_action,
++-                "error": result.error_message
+++                "caller_type": result.get('caller_type', 'lead'),
+++                "intent": result.get('intent', 'generic'),
+++                "response": result.get('response_text','Sorry I can\'t help you right now?'),
+++                "next_action": result.get('next_action', 'None'),
+++                "error": result.get('error_message','Unkown error')
++             }
++             
++         except Exception as e:
++diff --git a/test_regeneration_instructions.md b/test_regeneration_instructions.md
++new file mode 100644
++index 0000000..bddd11f
++--- /dev/null
+++++ b/test_regeneration_instructions.md
++@@ -0,0 +1,96 @@
+++Recommended Test Plan for AI Receptionist App
+++This document outlines the comprehensive set of tests to ensure reliability, correctness, and security whenever changes are made to the codebase.
+++
+++1. Unit Tests (Lowest-level, fast run)
+++Validate individual classes, models, and services in isolation.
+++
+++Models (src/models)
+++WorkflowState model
+++Default initialization of state fields.
+++Serialization and deserialization to dict.
+++Invalid type handling (e.g., passing string where enum required).
+++Database models (Client, Vendor, etc.)
+++Required/optional field validation.
+++ObjectId / _id handling and custom serializers.
+++Escaping/sanitization of notes and addresses.
+++Utilities (src/utilities)
+++phone_utils
+++Normalize phone numbers with/without +1.
+++Reject malformed phone formats.
+++text_processing
+++Stop word removal.
+++Chunking of text >1000 tokens with 100-token overlap.
+++Graceful handling of empty or very short text.
+++Services
+++DatabaseService
+++Connection success and failure scenarios.
+++CRUD operations with mock Mongo.
+++Auto-creation of collections when missing.
+++EmbeddingService
+++Successful embedding generation (mocked Google API).
+++Fallback to zero vector when embedding API fails.
+++Chunking + embedding of large text bodies.
+++ContextService
+++Client context aggregation (client + properties + jobs + visits).
+++Vendor context aggregation (vendor + jobs + visits).
+++Lead context returns only KB info.
+++Access restrictions filter forbidden fields.
+++2. Node/Workflow Layer (src/nodes)
+++Test each workflow node in isolation.
+++
+++IdentityChecker
+++Known client phone → CallerType.CLIENT.
+++Known vendor phone → CallerType.VENDOR.
+++Unknown phone → CallerType.LEAD.
+++IntentAnalyzer
+++“What’s my job status?” → Intent.STATUS_CHECK.
+++“I want cleaning service” → Intent.SERVICE_INQUIRY.
+++Unknown phrasing → Intent.GENERIC.
+++ContextBuilder
+++Client context includes only their own jobs.
+++Vendor context excludes unrelated client jobs.
+++Lead context restricted to general KB entries.
+++ResponseGenerator
+++Generates meaningful text response.
+++Enforces access control (no data leakage).
+++Embeds context correctly into LLM prompt.
+++3. Integration Tests
+++Combine multiple modules to validate workflows.
+++
+++Database + Embedding pipeline
+++Insert client/job → verify KB entry with embedding exists.
+++Process call end-to-end (mock LLM)
+++Client call → returns personalized response.
+++Vendor call → returns vendor-focused response.
+++Lead call → returns general KB info only.
+++Twilio webhook simulation
+++Simulated call event JSON → processed → generates appropriate Twilio TTS response.
+++4. Access Control Tests
+++Critical to enforce data protection rules.
+++
+++Client restrictions
+++Clients only retrieve their properties, jobs, visits.
+++Attempt to access another client’s job → denied/filtered.
+++Vendor restrictions
+++Vendors only retrieve their assigned jobs.
+++Vendors cannot view unrelated clients.
+++Lead restrictions
+++Leads cannot see private data.
+++System role
+++System/AI has full access (internal use only).
+++5. Performance & Reliability Tests
+++EmbeddingService handles large text bodies (10k+ tokens, chunked).
+++Workflow latency < X ms for standard calls.
+++Database concurrency test: multiple simultaneous calls succeed without conflict.
+++Embedding API failures trigger retries/backoff gracefully.
+++6. Regression & Scenario Tests
+++End-to-End Conversation Flows
+++Client asks status → job status pulled from DB + summarized.
+++Vendor updates/reschedules job → workflow reflects new state.
+++Lead makes service inquiry → responds with general info only.
+++Malicious Input Handling
+++SQL/JS injection attempts → sanitized safely.
+++Overly long inputs (>50k chars) truncated gracefully.
+++Failover Scenarios
+++DB outage → workflow exits gracefully with error handling.
+++Embedding API error → workflow falls back to non-embedded text.
++\ No newline at end of file
++diff --git a/tests/replicate_conversations.py b/tests/replicate_conversations.py
++new file mode 100644
++index 0000000..cff39fd
++--- /dev/null
+++++ b/tests/replicate_conversations.py
++@@ -0,0 +1,239 @@
+++import requests
+++import json
+++import time
+++import random
+++from typing import List, Dict, Optional
+++from datetime import datetime
+++from pathlib import Path
+++
+++class ReceptionistClient:
+++    """Client for interacting with the AI Receptionist API."""
+++    
+++    def __init__(self, base_url: str = "http://127.0.0.1:8000"):
+++        self.base_url = base_url
+++        self.session = requests.Session()
+++        self.session.headers.update({"Content-Type": "application/json"})
+++    
+++    def health_check(self) -> Dict:
+++        """Check if the API is healthy."""
+++        try:
+++            response = self.session.get(f"{self.base_url}/health")
+++            response.raise_for_status()
+++            return response.json()
+++        except requests.exceptions.RequestException as e:
+++            print(f"❌ Health check failed: {e}")
+++            return {"status": "unhealthy", "error": str(e)}
+++    
+++    def process_call(self, caller_phone: str, speech_text: str, call_sid: str) -> Dict:
+++        print("Send a call to the AI Receptionist for processing.")
+++        payload = {
+++            "caller_phone": caller_phone,
+++            "speech_text": speech_text,
+++            "call_sid": call_sid
+++        }
+++        
+++        try:
+++            print(f"📞 Sending: {speech_text}")
+++            response = self.session.post(f"{self.base_url}/process-call", json=payload)
+++            response.raise_for_status()
+++            result = response.json()
+++            print(f"🤖 Response: {result.get('response', 'No response')}")
+++            print(f"📊 Intent: {result.get('intent', 'Unknown')}")
+++            print(f"👤 Caller Type: {result.get('caller_type', 'Unknown')}")
+++            print(f"⚡ Next Action: {result.get('next_action', 'None')}")
+++            print(f"❌ Error Message: {result.get('error', 'No error')}")
+++            print("-" * 50)
+++            return result
+++        except requests.exceptions.RequestException as e:
+++            print(f"❌ API call failed: {e}")
+++            return {"success": False, "error": str(e)}
+++
+++class ConversationSimulator:
+++    """Simulates realistic conversations with the AI Receptionist."""
+++    
+++    def __init__(self, client: ReceptionistClient):
+++        self.client = client
+++        self.call_sid_counter = 1000
+++        # Ensure conversations directory exists
+++        self.conversations_dir = Path("simulated_conversations")
+++        self.conversations_dir.mkdir(exist_ok=True)
+++
+++    def generate_call_sid(self) -> str:
+++        """Generate a unique call SID."""
+++        call_sid = f"CA{self.call_sid_counter:010d}"
+++        self.call_sid_counter += 1
+++        return call_sid
+++    
+++    def _save_conversation(self, scenario_name: str, caller_phone: str, call_sid: str, results: List[Dict]) -> None:
+++        """Save the full conversation as a Markdown file with timestamp."""
+++        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+++        safe_name = scenario_name.replace(" ", "_").lower()
+++        phone = caller_phone.replace("+", "").replace("-", "").replace(".", "")
+++        filename = f"{timestamp}_{safe_name}_{phone}.md"
+++        filepath = self.conversations_dir / filename
+++
+++        md_lines = [
+++            f"# Conversation Log: {scenario_name}",
+++            "",
+++            f"- **Caller Phone:** {caller_phone}",
+++            f"- **Call SID:** {call_sid}",
+++            f"- **Timestamp:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+++            "",
+++            "## Conversation",
+++            ""
+++        ]
+++
+++        for turn in results:
+++            md_lines.append(f"### Turn {turn['turn']}")
+++            md_lines.append(f"**Caller:** {turn['input']}")
+++            outcome = turn["result"]
+++            md_lines.append(f"**AI Response:** {outcome.get('response','')}")
+++            md_lines.append(f"- Intent: {outcome.get('intent','Unknown')}")
+++            md_lines.append(f"- Caller Type: {outcome.get('caller_type','Unknown')}")
+++            md_lines.append(f"- Next Action: {outcome.get('next_action','None')}")
+++            md_lines.append("")
+++
+++        md_lines.append("---")
+++        md_lines.append("*Generated by Conversation Simulator*")
+++
+++        with open(filepath, "w", encoding="utf-8") as f:
+++            f.write("\n".join(md_lines))
+++
+++        print(f"📝 Conversation saved to {filepath}")
+++
+++    def simulate_conversation(self, scenario: Dict) -> List[Dict]:
+++        """Simulate a multi-turn conversation based on a scenario."""
+++        caller_phone = scenario["caller_phone"]
+++        conversation = scenario["conversation"]
+++        call_sid = self.generate_call_sid()
+++        
+++        print(f"\n🎭 Starting scenario: {scenario['name']}")
+++        print(f"📱 Caller: {caller_phone}")
+++        print(f"🆔 Call SID: {call_sid}")
+++        print("=" * 60)
+++        
+++        results = []
+++        
+++        for turn_num, speech_text in enumerate(conversation, 1):
+++            print(f"\n--- Turn: {turn_num} ---")
+++            
+++            if turn_num > 1:
+++                delay = random.uniform(1, 3)
+++                print(f"⏳ Waiting {delay:.1f}s...")
+++                time.sleep(delay)
+++            
+++            result = self.client.process_call(caller_phone, speech_text, call_sid)
+++            results.append({
+++                "turn": turn_num,
+++                "input": speech_text,
+++                "result": result
+++            })
+++
+++            if not result.get("success", False):
+++                print("❌ Conversation stopped due to error")
+++                break
+++            break
+++
+++        # Save conversation log
+++        self._save_conversation(scenario["name"], caller_phone, call_sid, results)
+++        
+++        return results
+++
+++def main():
+++    client = ReceptionistClient()
+++    
+++    print("🏥 Checking API health...")
+++    health = client.health_check()
+++    print(f"Health status: {health}")
+++    
+++    if health.get("status") != "healthy":
+++        print("❌ API is not healthy. Exiting.")
+++        return
+++    
+++    simulator = ConversationSimulator(client)
+++    
+++     # Define conversation scenarios
+++    scenarios = [
+++        {
+++            "name": "Appointment Scheduling",
+++            "caller_phone": "+13388582100",
+++            "conversation": [
+++                "Hi, I want to schedule an appointment for next week."
+++            ],
+++        },
+++        {
+++            "name": "Appointment Scheduling",
+++            "caller_phone": "+13388582100",
+++            "conversation": [
+++                "Hi, I want to schedule an appointment for next week.",
+++                "I'm available Tuesday or Wednesday afternoon.",
+++                "Tuesday at 2 PM works great for me.",
+++                "Thank you, see you then!"
+++            ]
+++        },
+++        {
+++            "name": "Billing Inquiry",
+++            "caller_phone": "+14155555678",
+++            "conversation": [
+++                "I have a question about my invoice.",
+++                "I was charged twice for the same service last month.",
+++                "The invoice number is INV-2024-001234.",
+++                "Yes, please transfer me to billing department."
+++            ]
+++        },
+++        {
+++            "name": "General Information",
+++            "caller_phone": "+14155559999",
+++            "conversation": [
+++                "What are your business hours?",
+++                "Do you offer weekend appointments?",
+++                "How much does a consultation cost?",
+++                "Thank you for the information."
+++            ]
+++        },
+++        {
+++            "name": "Vendor Business Hours Change",
+++            "caller_phone": "+1863.888.1787",
+++            "conversation": [
+++                "I need to change my business hours for next week monday to friday to Closed.",
+++                "Please verify my business hours for next week",
+++                "Thank you."
+++            ]
+++        },
+++        
+++        {
+++            "name": "Emergency Call",
+++            "caller_phone": "+14155551111",
+++            "conversation": [
+++                "This is an emergency! I need help immediately!",
+++                "My system is down and I have a presentation in 30 minutes!",
+++                "Yes, please connect me to technical support right away."
+++            ]
+++        },
+++        {
+++            "name": "Spam/Sales Call",
+++            "caller_phone": "+18005551234",
+++            "conversation": [
+++                "Hello, I'm calling about your car's extended warranty.",
+++                "We have a special offer just for you today.",
+++                "This offer expires in the next 10 minutes."
+++            ]
+++        }
+++    ]
+++    
+++    all_results = []
+++    
+++    for scenario in scenarios:
+++        try:
+++            results = simulator.simulate_conversation(scenario)
+++            all_results.append({"scenario": scenario["name"], "results": results})
+++            time.sleep(2)
+++        except Exception as e:
+++            print(f"❌ Error in scenario '{scenario['name']}': {e}")
+++            continue
+++        break
+++    
+++    print("\n🏁 Simulation complete!")
+++
+++if __name__ == "__main__":
+++    main()
++\ No newline at end of file
++diff --git a/tests/run_tests.py b/tests/run_tests.py
++new file mode 100644
++index 0000000..11f41a5
++--- /dev/null
+++++ b/tests/run_tests.py
++@@ -0,0 +1,305 @@
+++# ============================== run_tests.py ==============================
+++#!/usr/bin/env python3
+++"""
+++Master Test Controller for AI Receptionist App
+++Runs all test categories and reports results in a tabulated format.
+++
+++# Run the master test controller
+++python run_tests.py
+++"""
+++
+++import subprocess
+++import sys
+++import time
+++from pathlib import Path
+++from dataclasses import dataclass
+++from typing import List, Dict, Any
+++from tabulate import tabulate
+++import json
+++import re
+++
+++
+++@dataclass
+++class TestResult:
+++    """Test result data structure."""
+++    category: str
+++    file_path: str
+++    passed: int
+++    failed: int
+++    errors: int
+++    skipped: int
+++    warnings: int
+++    duration: float
+++    status: str
+++    details: str = ""
+++
+++
+++class TestController:
+++    """Master test controller for running and reporting test results."""
+++    
+++    def __init__(self):
+++        self.results: List[TestResult] = []
+++        self.test_categories = {
+++            "Unit Tests - Models": "tests/test_unit_models.py",
+++            "Unit Tests - Utilities": "tests/test_utilities.py", 
+++            "Unit Tests - Services": "tests/test_services.py",
+++            "Node/Workflow Tests": "tests/test_nodes.py",
+++            "Integration Tests": "tests/test_integration.py",
+++            "Access Control Tests": "tests/test_access_control.py",
+++            "Performance Tests": "tests/test_performance.py",
+++            "Regression Tests": "tests/test_regression.py",
+++            "Workflow Tests": "tests/test_workflow.py"
+++        }
+++    
+++    def run_pytest_category(self, category: str, file_path: str) -> TestResult:
+++        """Run pytest for a specific test category."""
+++        print(f"🧪 Running {category}...")
+++        
+++        start_time = time.time()
+++        
+++        try:
+++            # Run pytest with JSON report
+++            cmd = [
+++                sys.executable, "-m", "pytest", 
+++                file_path,
+++                "--tb=short",
+++                "--json-report",
+++                "--json-report-file=temp_report.json",
+++                "-v"
+++            ]
+++            
+++            result = subprocess.run(
+++                cmd, 
+++                capture_output=True, 
+++                text=True, 
+++                timeout=300  # 5 minute timeout
+++            )
+++            
+++            duration = time.time() - start_time
+++            
+++            # Parse JSON report if available
+++            report_data = self._parse_json_report()
+++            
+++            if result.returncode == 0:
+++                status = "✅ PASS"
+++            elif result.returncode == 1:
+++                status = "❌ FAIL" 
+++            else:
+++                status = "⚠️ ERROR"
+++            
+++            # Extract test counts from output
+++            passed, failed, errors, skipped, warnings = self._parse_pytest_output(result.stdout)
+++            
+++            return TestResult(
+++                category=category,
+++                file_path=file_path,
+++                passed=passed,
+++                failed=failed,
+++                errors=errors,
+++                skipped=skipped,
+++                warnings=warnings,
+++                duration=duration,
+++                status=status,
+++                details=result.stdout.split('\n')[-3] if result.stdout else ""
+++            )
+++            
+++        except subprocess.TimeoutExpired:
+++            return TestResult(
+++                category=category,
+++                file_path=file_path,
+++                passed=0, failed=0, errors=1, skipped=0, warnings=0,
+++                duration=300.0,
+++                status="⏰ TIMEOUT",
+++                details="Test execution timed out after 5 minutes"
+++            )
+++        except FileNotFoundError:
+++            return TestResult(
+++                category=category,
+++                file_path=file_path,
+++                passed=0, failed=0, errors=0, skipped=0, warnings=0,
+++                duration=0.0,
+++                status="📁 NOT FOUND",
+++                details=f"Test file {file_path} does not exist"
+++            )
+++        except Exception as e:
+++            return TestResult(
+++                category=category,
+++                file_path=file_path,
+++                passed=0, failed=0, errors=1, skipped=0, warnings=0,
+++                duration=0.0,
+++                status="💥 EXCEPTION",
+++                details=str(e)
+++            )
+++    
+++    def _parse_json_report(self) -> Dict[str, Any]:
+++        """Parse pytest JSON report if available."""
+++        try:
+++            with open("temp_report.json", "r") as f:
+++                return json.load(f)
+++        except:
+++            return {}
+++    
+++    def _parse_pytest_output(self, output: str) -> tuple:
+++        """Parse pytest output to extract test counts."""
+++        passed = failed = errors = skipped = warnings = 0
+++        
+++        # Look for summary line like: "2 passed, 1 failed, 3 warnings in 1.23s"
+++        summary_pattern = r'(\d+)\s+(\w+)(?:,\s*)?'
+++        matches = re.findall(summary_pattern, output)
+++        
+++        for count, status in matches:
+++            count = int(count)
+++            if 'passed' in status:
+++                passed = count
+++            elif 'failed' in status:
+++                failed = count
+++            elif 'error' in status:
+++                errors = count
+++            elif 'skipped' in status:
+++                skipped = count
+++            elif 'warning' in status:
+++                warnings = count
+++        
+++        return passed, failed, errors, skipped, warnings
+++    
+++    def run_all_tests(self) -> None:
+++        """Run all test categories."""
+++        print("🚀 Starting AI Receptionist Test Suite")
+++        print("=" * 60)
+++        
+++        total_start = time.time()
+++        
+++        for category, file_path in self.test_categories.items():
+++            result = self.run_pytest_category(category, file_path)
+++            self.results.append(result)
+++        
+++        total_duration = time.time() - total_start
+++        
+++        # Clean up temp files
+++        try:
+++            Path("temp_report.json").unlink(missing_ok=True)
+++        except:
+++            pass
+++        
+++        self.print_summary_report(total_duration)
+++    
+++    def print_summary_report(self, total_duration: float) -> None:
+++        """Print a beautiful tabulated summary report."""
+++        print("\n" + "=" * 80)
+++        print("📊 TEST EXECUTION SUMMARY")
+++        print("=" * 80)
+++        
+++        # Prepare table data
+++        table_data = []
+++        total_passed = total_failed = total_errors = total_skipped = total_warnings = 0
+++        
+++        for result in self.results:
+++            table_data.append([
+++                result.category,
+++                result.status,
+++                result.passed,
+++                result.failed,
+++                result.errors,
+++                result.skipped,
+++                result.warnings,
+++                f"{result.duration:.2f}s"
+++            ])
+++            
+++            total_passed += result.passed
+++            total_failed += result.failed
+++            total_errors += result.errors
+++            total_skipped += result.skipped
+++            total_warnings += result.warnings
+++        
+++        # Add totals row
+++        table_data.append([
+++            "─" * 20,
+++            "─" * 10,
+++            "─" * 6,
+++            "─" * 6,
+++            "─" * 6,
+++            "─" * 7,
+++            "─" * 8,
+++            "─" * 8
+++        ])
+++        table_data.append([
+++            "TOTALS",
+++            self._get_overall_status(),
+++            total_passed,
+++            total_failed,
+++            total_errors,
+++            total_skipped,
+++            total_warnings,
+++            f"{total_duration:.2f}s"
+++        ])
+++        
+++        # Print main results table
+++        headers = ["Category", "Status", "Passed", "Failed", "Errors", "Skipped", "Warnings", "Duration"]
+++        print(tabulate(table_data, headers=headers, tablefmt="grid"))
+++        
+++        # Print detailed failures if any
+++        self._print_failure_details()
+++        
+++        # Print final summary
+++        self._print_final_summary(total_passed, total_failed, total_errors, total_duration)
+++    
+++    def _get_overall_status(self) -> str:
+++        """Determine overall test suite status."""
+++        if any(r.status.startswith("❌") or r.status.startswith("💥") for r in self.results):
+++            return "❌ FAIL"
+++        elif any(r.status.startswith("⚠️") or r.status.startswith("⏰") for r in self.results):
+++            return "⚠️ ISSUES"
+++        elif any(r.status.startswith("📁") for r in self.results):
+++            return "📁 INCOMPLETE"
+++        else:
+++            return "✅ PASS"
+++    
+++    def _print_failure_details(self) -> None:
+++        """Print detailed information about failed tests."""
+++        failed_tests = [r for r in self.results if not r.status.startswith("✅")]
+++        
+++        if failed_tests:
+++            print("\n" + "=" * 80)
+++            print("🔍 DETAILED FAILURE REPORT")
+++            print("=" * 80)
+++            
+++            for result in failed_tests:
+++                print(f"\n📂 {result.category}")
+++                print(f"   Status: {result.status}")
+++                print(f"   File: {result.file_path}")
+++                if result.details:
+++                    print(f"   Details: {result.details}")
+++    
+++    def _print_final_summary(self, passed: int, failed: int, errors: int, duration: float) -> None:
+++        """Print final execution summary."""
+++        print("\n" + "=" * 80)
+++        print("🎯 FINAL SUMMARY")
+++        print("=" * 80)
+++        
+++        summary_data = [
+++            ["Total Tests Passed", f"✅ {passed}"],
+++            ["Total Tests Failed", f"❌ {failed}"],
+++            ["Total Errors", f"💥 {errors}"],
+++            ["Total Execution Time", f"⏱️ {duration:.2f} seconds"],
+++            ["Test Categories", f"📁 {len(self.test_categories)}"],
+++        ]
+++        
+++        print(tabulate(summary_data, tablefmt="simple"))
+++        
+++        # Exit code based on results
+++        if failed > 0 or errors > 0:
+++            print(f"\n❌ Test suite FAILED with {failed} failures and {errors} errors")
+++            sys.exit(1)
+++        else:
+++            print(f"\n✅ All tests PASSED! 🎉")
+++            sys.exit(0)
+++
+++
+++def main():
+++    """Main entry point."""
+++    controller = TestController()
+++    controller.run_all_tests()
+++
+++
+++if __name__ == "__main__":
+++    main()
++\ No newline at end of file
++diff --git a/tests/test_access_control.py b/tests/test_access_control.py
++new file mode 100644
++index 0000000..7e1613a
++--- /dev/null
+++++ b/tests/test_access_control.py
++@@ -0,0 +1,14 @@
+++# ============================== tests/test_access_control.py ==============================
+++import pytest
+++
+++def test_client_access_only_own_jobs(mock_db):
+++    # TODO: simulate client requesting another client's job
+++    pass
+++
+++def test_vendor_cannot_access_other_clients(mock_db):
+++    # TODO: simulate vendor restricted query
+++    pass
+++
+++def test_lead_has_no_private_access(mock_db):
+++    # TODO: simulate lead fetching KB
+++    pass
++\ No newline at end of file
++diff --git a/tests/test_models.py b/tests/test_models.py
++new file mode 100644
++index 0000000..4b88385
++--- /dev/null
+++++ b/tests/test_models.py
++@@ -0,0 +1,26 @@
+++# ============================== tests/test_unit_models.py ==============================
+++import pytest
+++from src.models.workflow_models import WorkflowState, CallerType, Intent
+++from src.models.database_models import Client, Vendor
+++
+++
+++def test_workflow_state_defaults():
+++    state = WorkflowState()
+++    assert state.processed is False
+++    assert state.intent is None
+++
+++
+++def test_workflow_state_serialization():
+++    state = WorkflowState(caller_phone="+15551234567", intent=Intent.STATUS_CHECK)
+++    data = state.model_dump()
+++    assert "caller_phone" in data
+++
+++
+++def test_invalid_enum_raises():
+++    with pytest.raises(ValueError):
+++        WorkflowState(intent="NOT_A_VALID_INTENT")  # wrong type
+++
+++
+++def test_client_model_validation():
+++    client = Client(name="Jane Doe", phone="+15551234567")
+++    assert client.name == "Jane Doe"
++\ No newline at end of file
++diff --git a/tests/test_nodes.py b/tests/test_nodes.py
++new file mode 100644
++index 0000000..7fd4c96
++--- /dev/null
+++++ b/tests/test_nodes.py
++@@ -0,0 +1,23 @@
+++# ============================== tests/test_nodes.py ==============================
+++import pytest
+++from src.nodes.identity_checker import IdentityChecker
+++from src.nodes.intent_analyzer import IntentAnalyzer
+++from src.nodes.context_builder import ContextBuilder
+++from src.nodes.response_generator import ResponseGenerator
+++from src.models.workflow_models import WorkflowState, CallerType, Intent
+++
+++
+++@pytest.mark.asyncio
+++async def test_identity_checker_client():
+++    checker = IdentityChecker()
+++    state = WorkflowState(caller_phone="+15551234567")
+++    new_state = await checker.run(state)
+++    assert new_state.caller_type in (CallerType.CLIENT, CallerType.LEAD, CallerType.VENDOR)
+++
+++
+++@pytest.mark.asyncio
+++async def test_intent_analyzer_status_check():
+++    analyzer = IntentAnalyzer()
+++    state = WorkflowState(speech_text="What's the status of my job?")
+++    new_state = await analyzer.run(state)
+++    assert new_state.intent in (Intent.STATUS_CHECK, Intent.GENERIC)
++\ No newline at end of file
++diff --git a/tests/test_performance.py b/tests/test_performance.py
++new file mode 100644
++index 0000000..eac920a
++--- /dev/null
+++++ b/tests/test_performance.py
++@@ -0,0 +1,15 @@
+++# ============================== tests/test_performance.py ==============================
+++import pytest
+++import time
+++from src.services.embedding_service import EmbeddingService
+++
+++
+++@pytest.mark.asyncio
+++async def test_embedding_large_document(monkeypatch):
+++    service = EmbeddingService()
+++    monkeypatch.setattr(service, "embed_text", lambda text: [0.1, 0.2, 0.3])
+++    text = "word " * 12000  # long content
+++    start = time.time()
+++    _ = await service.create_embedding(text)
+++    elapsed = time.time() - start
+++    assert elapsed < 2  # embedding should be fast enough
++\ No newline at end of file
++diff --git a/tests/test_regression.py b/tests/test_regression.py
++new file mode 100644
++index 0000000..bbb6c48
++--- /dev/null
+++++ b/tests/test_regression.py
++@@ -0,0 +1,18 @@
+++# ============================== tests/test_regression.py ==============================
+++import pytest
+++from src.models.workflow_models import WorkflowState, CallerType, Intent
+++
+++@pytest.mark.asyncio
+++async def test_client_status_end_to_end(ai_receptionist_realistic):
+++    # TODO: simulate actual conversation loop with a mock LLM
+++    pass
+++
+++@pytest.mark.asyncio
+++async def test_vendor_reschedule(ai_receptionist_realistic):
+++    # TODO: write a simulated vendor flow
+++    pass
+++
+++@pytest.mark.asyncio
+++async def test_lead_general_inquiry(ai_receptionist_realistic):
+++    # TODO: write a simulated lead flow
+++    pass
++\ No newline at end of file
++diff --git a/tests/test_services.py b/tests/test_services.py
++new file mode 100644
++index 0000000..f6691df
++--- /dev/null
+++++ b/tests/test_services.py
++@@ -0,0 +1,31 @@
+++# ============================== tests/test_services.py ==============================
+++import pytest
+++from unittest.mock import AsyncMock, MagicMock, patch
+++from src.services.database_service import DatabaseService
+++from src.services.embedding_service import EmbeddingService
+++from src.services.context_service import ContextService
+++
+++
+++@pytest.mark.asyncio
+++async def test_database_connect_disconnect():
+++    service = DatabaseService()
+++    service.client = MagicMock()
+++    await service.connect()
+++    await service.disconnect()
+++    service.client.close.assert_called()
+++
+++
+++@pytest.mark.asyncio
+++async def test_embedding_service_success(monkeypatch):
+++    service = EmbeddingService()
+++    monkeypatch.setattr(service, "embed_text", lambda text: [0.1, 0.2])
+++    vec = await service.create_embedding("hello")
+++    assert vec == [0.1, 0.2]
+++
+++
+++@pytest.mark.asyncio
+++async def test_embedding_service_fallback(monkeypatch):
+++    service = EmbeddingService()
+++    monkeypatch.setattr(service, "embed_text", lambda text: 1/0)  # force error
+++    vec = await service.create_embedding("hello")
+++    assert all(v == 0.0 for v in vec)
++\ No newline at end of file
++diff --git a/tests/test_utilites.py b/tests/test_utilites.py
++new file mode 100644
++index 0000000..cd9a728
++--- /dev/null
+++++ b/tests/test_utilites.py
++@@ -0,0 +1,20 @@
+++# ============================== tests/test_utilities.py ==============================
+++import pytest
+++from src.utilities import phone_utils, text_processing
+++
+++def test_normalize_phone():
+++    assert phone_utils.normalize("+1 (555) 123-4567") == "+15551234567"
+++
+++def test_invalid_phone_raises():
+++    with pytest.raises(ValueError):
+++        phone_utils.normalize("abcd")
+++
+++def test_stop_words_removed():
+++    text = "This is a simple test of the chunking"
+++    processed = text_processing.remove_stopwords(text)
+++    assert "is" not in processed
+++
+++def test_chunking_overlap():
+++    text = "word " * 1200
+++    chunks = text_processing.chunk_text(text, max_tokens=1000, overlap=100)
+++    assert len(chunks) > 1
++\ No newline at end of file
++diff --git a/tests/tetst_integration.py b/tests/tetst_integration.py
++new file mode 100644
++index 0000000..909fdf0
++--- /dev/null
+++++ b/tests/tetst_integration.py
++@@ -0,0 +1,18 @@
+++# ============================== tests/test_integration.py ==============================
+++import pytest
+++from unittest.mock import AsyncMock
+++from src.workflow.ai_receptionist_workflow import AIReceptionistWorkflow
+++from src.models.workflow_models import CallerType, Intent
+++
+++
+++@pytest.mark.asyncio
+++async def test_end_to_end_client_flow(monkeypatch):
+++    workflow = AIReceptionistWorkflow()
+++    workflow.db_service.find_client_by_phone = AsyncMock(return_value={"name": "John"})
+++    workflow.context_service.build_client_context = AsyncMock(return_value={"jobs": []})
+++
+++    call_data = {"caller_phone": "+15551234567", "speech_text": "status?", "call_sid": "1"}
+++    result = await workflow.process_call(call_data)
+++
+++    assert result.caller_type == CallerType.CLIENT
+++    assert result.intent in (Intent.STATUS_CHECK, Intent.GENERIC)
++\ No newline at end of file
++diff --git a/uv.lock b/uv.lock
++index 388ba2c..d3fff4c 100644
++--- a/uv.lock
+++++ b/uv.lock
++@@ -1,5 +1,5 @@
++ version = 1
++-revision = 3
+++revision = 2
++ requires-python = ">=3.10"
++ resolution-markers = [
++     "python_full_version >= '3.13'",
++@@ -29,6 +29,7 @@ dependencies = [
++     { name = "click" },
++     { name = "colorama" },
++     { name = "dill" },
+++    { name = "dotenv" },
++     { name = "faker" },
++     { name = "fastapi" },
++     { name = "filetype" },
++@@ -79,6 +80,7 @@ dependencies = [
++     { name = "pymongo" },
++     { name = "pytest" },
++     { name = "pytest-asyncio" },
+++    { name = "pytest-json-report" },
++     { name = "pytest-mock" },
++     { name = "python-dateutil" },
++     { name = "python-dotenv" },
++@@ -94,6 +96,7 @@ dependencies = [
++     { name = "sniffio" },
++     { name = "sqlalchemy" },
++     { name = "structlog" },
+++    { name = "tabulate" },
++     { name = "tenacity" },
++     { name = "typing-extensions" },
++     { name = "typing-inspection" },
++@@ -149,6 +152,7 @@ requires-dist = [
++     { name = "click" },
++     { name = "colorama" },
++     { name = "dill" },
+++    { name = "dotenv", specifier = ">=0.9.9" },
++     { name = "faker", specifier = ">=37.8.0" },
++     { name = "fastapi", specifier = ">=0.117.1" },
++     { name = "filetype" },
++@@ -210,6 +214,7 @@ requires-dist = [
++     { name = "pytest", marker = "extra == 'testing'" },
++     { name = "pytest-asyncio", specifier = ">=1.2.0" },
++     { name = "pytest-asyncio", marker = "extra == 'testing'" },
+++    { name = "pytest-json-report", specifier = ">=1.5.0" },
++     { name = "pytest-mock", specifier = ">=3.15.1" },
++     { name = "pytest-mock", marker = "extra == 'testing'" },
++     { name = "python-dateutil" },
++@@ -227,6 +232,7 @@ requires-dist = [
++     { name = "sniffio" },
++     { name = "sqlalchemy" },
++     { name = "structlog" },
+++    { name = "tabulate", specifier = ">=0.9.0" },
++     { name = "tenacity" },
++     { name = "tomlkit", marker = "extra == 'dev'" },
++     { name = "typing-extensions" },
++@@ -605,6 +611,17 @@ wheels = [
++     { url = "https://files.pythonhosted.org/packages/ba/5a/18ad964b0086c6e62e2e7500f7edc89e3faa45033c71c1893d34eed2b2de/dnspython-2.8.0-py3-none-any.whl", hash = "sha256:01d9bbc4a2d76bf0db7c1f729812ded6d912bd318d3b1cf81d30c0f845dbf3af", size = 331094, upload-time = "2025-09-07T18:57:58.071Z" },
++ ]
++ 
+++[[package]]
+++name = "dotenv"
+++version = "0.9.9"
+++source = { registry = "https://pypi.org/simple" }
+++dependencies = [
+++    { name = "python-dotenv" },
+++]
+++wheels = [
+++    { url = "https://files.pythonhosted.org/packages/b2/b7/545d2c10c1fc15e48653c91efde329a790f2eecfbbf2bd16003b5db2bab0/dotenv-0.9.9-py2.py3-none-any.whl", hash = "sha256:29cf74a087b31dafdb5a446b6d7e11cbce8ed2741540e2339c69fbef92c94ce9", size = 1892, upload-time = "2025-02-19T22:15:01.647Z" },
+++]
+++
++ [[package]]
++ name = "exceptiongroup"
++ version = "1.3.0"
++@@ -2617,6 +2634,31 @@ wheels = [
++     { url = "https://files.pythonhosted.org/packages/04/93/2fa34714b7a4ae72f2f8dad66ba17dd9a2c793220719e736dda28b7aec27/pytest_asyncio-1.2.0-py3-none-any.whl", hash = "sha256:8e17ae5e46d8e7efe51ab6494dd2010f4ca8dae51652aa3c8d55acf50bfb2e99", size = 15095, upload-time = "2025-09-12T07:33:52.639Z" },
++ ]
++ 
+++[[package]]
+++name = "pytest-json-report"
+++version = "1.5.0"
+++source = { registry = "https://pypi.org/simple" }
+++dependencies = [
+++    { name = "pytest" },
+++    { name = "pytest-metadata" },
+++]
+++sdist = { url = "https://files.pythonhosted.org/packages/4f/d3/765dae9712fcd68d820338908c1337e077d5fdadccd5cacf95b9b0bea278/pytest-json-report-1.5.0.tar.gz", hash = "sha256:2dde3c647851a19b5f3700729e8310a6e66efb2077d674f27ddea3d34dc615de", size = 21241, upload-time = "2022-03-15T21:03:10.2Z" }
+++wheels = [
+++    { url = "https://files.pythonhosted.org/packages/81/35/d07400c715bf8a88aa0c1ee9c9eb6050ca7fe5b39981f0eea773feeb0681/pytest_json_report-1.5.0-py3-none-any.whl", hash = "sha256:9897b68c910b12a2e48dd849f9a284b2c79a732a8a9cb398452ddd23d3c8c325", size = 13222, upload-time = "2022-03-15T21:03:08.65Z" },
+++]
+++
+++[[package]]
+++name = "pytest-metadata"
+++version = "3.1.1"
+++source = { registry = "https://pypi.org/simple" }
+++dependencies = [
+++    { name = "pytest" },
+++]
+++sdist = { url = "https://files.pythonhosted.org/packages/a6/85/8c969f8bec4e559f8f2b958a15229a35495f5b4ce499f6b865eac54b878d/pytest_metadata-3.1.1.tar.gz", hash = "sha256:d2a29b0355fbc03f168aa96d41ff88b1a3b44a3b02acbe491801c98a048017c8", size = 9952, upload-time = "2024-02-12T19:38:44.887Z" }
+++wheels = [
+++    { url = "https://files.pythonhosted.org/packages/3e/43/7e7b2ec865caa92f67b8f0e9231a798d102724ca4c0e1f414316be1c1ef2/pytest_metadata-3.1.1-py3-none-any.whl", hash = "sha256:c8e0844db684ee1c798cfa38908d20d67d0463ecb6137c72e91f418558dd5f4b", size = 11428, upload-time = "2024-02-12T19:38:42.531Z" },
+++]
+++
++ [[package]]
++ name = "pytest-mock"
++ version = "3.15.1"
++@@ -3216,6 +3258,15 @@ wheels = [
++     { url = "https://files.pythonhosted.org/packages/a2/09/77d55d46fd61b4a135c444fc97158ef34a095e5681d0a6c10b75bf356191/sympy-1.14.0-py3-none-any.whl", hash = "sha256:e091cc3e99d2141a0ba2847328f5479b05d94a6635cb96148ccb3f34671bd8f5", size = 6299353, upload-time = "2025-04-27T18:04:59.103Z" },
++ ]
++ 
+++[[package]]
+++name = "tabulate"
+++version = "0.9.0"
+++source = { registry = "https://pypi.org/simple" }
+++sdist = { url = "https://files.pythonhosted.org/packages/ec/fe/802052aecb21e3797b8f7902564ab6ea0d60ff8ca23952079064155d1ae1/tabulate-0.9.0.tar.gz", hash = "sha256:0095b12bf5966de529c0feb1fa08671671b3368eec77d7ef7ab114be2c068b3c", size = 81090, upload-time = "2022-10-06T17:21:48.54Z" }
+++wheels = [
+++    { url = "https://files.pythonhosted.org/packages/40/44/4a5f08c96eb108af5cb50b41f76142f0afa346dfa99d5296fe7202a11854/tabulate-0.9.0-py3-none-any.whl", hash = "sha256:024ca478df22e9340661486f85298cff5f6dcdba14f3813e8830015b9ed1948f", size = 35252, upload-time = "2022-10-06T17:21:44.262Z" },
+++]
+++
++ [[package]]
++ name = "tenacity"
++ version = "9.1.2"
++```
++
+diff --git a/code_consolidator.py b/code_consolidator.py
+new file mode 100644
+index 0000000..f6c6613
+--- /dev/null
++++ b/code_consolidator.py
+@@ -0,0 +1,143 @@
++#!/usr/bin/env python3
++"""
++Code Consolidator - Combines main.py and src/ files into a single text file
++"""
++
++import os
++from pathlib import Path
++from datetime import datetime
++
++
++def get_file_extension_info(filepath):
++    """Get a description of the file type based on extension"""
++    ext = filepath.suffix.lower()
++    descriptions = {
++        '.py': 'Python',
++        '.js': 'JavaScript',
++        '.ts': 'TypeScript',
++        '.html': 'HTML',
++        '.css': 'CSS',
++        '.json': 'JSON',
++        '.md': 'Markdown',
++        '.txt': 'Text',
++        '.yml': 'YAML',
++        '.yaml': 'YAML',
++        '.xml': 'XML',
++        '.sh': 'Shell Script',
++        '.bat': 'Batch Script',
++        '.sql': 'SQL',
++        '.java': 'Java',
++        '.cpp': 'C++',
++        '.c': 'C',
++        '.h': 'C/C++ Header',
++        '.go': 'Go',
++        '.rs': 'Rust',
++        '.rb': 'Ruby',
++        '.php': 'PHP',
++    }
++    return descriptions.get(ext, 'Unknown')
++
++
++def should_include_file(filepath):
++    """Determine if a file should be included (exclude binary and large files)"""
++    # Skip common binary extensions
++    binary_extensions = {'.pyc', '.pyo', '.pyd', '.so', '.dll', '.dylib', 
++                         '.exe', '.bin', '.dat', '.db', '.sqlite', '.png', 
++                         '.jpg', '.jpeg', '.gif', '.ico', '.pdf', '.zip', 
++                         '.tar', '.gz', '.rar', '.7z'}
++    
++    if filepath.suffix.lower() in binary_extensions:
++        return False
++    
++    # Skip files larger than 1MB
++    try:
++        if filepath.stat().st_size > 1024 * 1024:
++            return False
++    except:
++        return False
++    
++    return True
++
++
++def read_file_safely(filepath):
++    """Attempt to read file with multiple encodings"""
++    encodings = ['utf-8', 'latin-1', 'cp1252']
++    
++    for encoding in encodings:
++        try:
++            with open(filepath, 'r', encoding=encoding) as f:
++                return f.read()
++        except UnicodeDecodeError:
++            continue
++        except Exception as e:
++            return f"[Error reading file: {str(e)}]"
++    
++    return "[Could not decode file with supported encodings]"
++
++
++def consolidate_code(output_filename='consolidated_code.txt'):
++    """Main function to consolidate all code files"""
++    
++    current_dir = Path.cwd()
++    main_py = current_dir / 'main.py'
++    src_dir = current_dir / 'src'
++    
++    # Collect all files to process
++    files_to_process = []
++    
++    # Add main.py if it exists
++    if main_py.exists() and main_py.is_file():
++        files_to_process.append(('ROOT', main_py))
++    
++    # Add all files from src directory
++    if src_dir.exists() and src_dir.is_dir():
++        for filepath in sorted(src_dir.rglob('*')):
++            if filepath.is_file() and should_include_file(filepath):
++                relative_path = filepath.relative_to(src_dir)
++                files_to_process.append(('src', filepath))
++    
++    # Write consolidated output
++    with open(output_filename, 'w', encoding='utf-8') as output:
++        # Write header
++        output.write("=" * 80 + "\n")
++        output.write("CODE CONSOLIDATION REPORT\n")
++        output.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
++        output.write(f"Total files: {len(files_to_process)}\n")
++        output.write("=" * 80 + "\n\n")
++        
++        # Write each file's content
++        for location, filepath in files_to_process:
++            separator = "=" * 80
++            output.write(f"\n{separator}\n")
++            
++            if location == 'ROOT':
++                output.write(f"FILE: {filepath.name}\n")
++                output.write(f"PATH: ./{filepath.name}\n")
++            else:
++                relative_path = filepath.relative_to(src_dir)
++                output.write(f"FILE: {filepath.name}\n")
++                output.write(f"PATH: ./src/{relative_path}\n")
++            
++            output.write(f"TYPE: {get_file_extension_info(filepath)}\n")
++            output.write(f"SIZE: {filepath.stat().st_size:,} bytes\n")
++            output.write(f"{separator}\n\n")
++            
++            # Write file content
++            content = read_file_safely(filepath)
++            output.write(content)
++            output.write("\n\n")
++        
++        # Write footer with summary
++        output.write("\n" + "=" * 80 + "\n")
++        output.write("END OF CONSOLIDATION\n")
++        output.write("=" * 80 + "\n")
++    
++    print(f"✓ Consolidation complete!")
++    print(f"✓ Output written to: {output_filename}")
++    print(f"✓ Total files processed: {len(files_to_process)}")
++    
++    return output_filename
++
++
++if __name__ == "__main__":
++    consolidate_code()
+\ No newline at end of file
+diff --git a/consolidated_code.txt b/consolidated_code.txt
+new file mode 100644
+index 0000000..79d4a9b
+--- /dev/null
++++ b/consolidated_code.txt
+@@ -0,0 +1,2713 @@
++================================================================================
++CODE CONSOLIDATION REPORT
++Generated: 2025-09-30 07:57:05
++Total files: 27
++================================================================================
++
++
++================================================================================
++FILE: main.py
++PATH: ./main.py
++TYPE: Python
++SIZE: 3,028 bytes
++================================================================================
++
++# ==================== main.py ====================
++"""
++Main entry point for the AI Receptionist system.
++uvicorn main:app --reload
++
++run_test.py -  To do Basic Tesing of the Agents
++replicate_conversations.py - Run some conversations to see the results.
++"""
++import logging
++import logging.config
++from logging.handlers import RotatingFileHandler
++import asyncio
++import json
++from fastapi import FastAPI, HTTPException
++from pydantic import BaseModel
++from typing import Dict, Any
++
++
++from src.workflow.workflow_runner import WorkflowRunner
++from config.settings import settings
++
++LOGGING_CONFIG = {
++    "version": 1,
++    "disable_existing_loggers": False,
++    "formatters": {
++        "default": {
++            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
++        },
++    },
++    "handlers": {
++        "default": {
++            "level": "INFO",
++            "formatter": "default",
++            "class": "logging.StreamHandler",
++        },
++        "file": {
++            "level": "INFO",
++            "formatter": "default",
++            "class": "logging.handlers.RotatingFileHandler",
++            "filename": "./logs/ai_receptionist.log",
++            "maxBytes": 10485760,
++            "backupCount": 5,
++        },
++    },
++    "root": {
++        "level": "INFO",
++        "handlers": ["default", "file"]
++    },
++}
++
++logging.config.dictConfig(LOGGING_CONFIG)
++logger = logging.getLogger("ai_receptionist")
++
++# Initialize FastAPI
++
++app = FastAPI(
++    title="AI Receptionist System",
++    description="MongoDB-based AI Receptionist with LangGraph workflow",
++    version="1.0.0"
++)
++
++# Global workflow runner
++workflow_runner = WorkflowRunner()
++
++
++class CallRequest(BaseModel):
++    """Request model for call processing."""
++    caller_phone: str
++    speech_text: str
++    call_sid: str
++
++
++class CallResponse(BaseModel):
++    """Response model for call processing."""
++    success: bool
++    caller_type: str = None
++    intent: str = None
++    response: str = None
++    next_action: str = None
++    error: str = None
++
++
++@app.get("/health")
++async def health_check():
++    print("""Health check endpoint.""")
++    return {"status": "healthy", "environment": settings.environment}
++
++
++@app.post("/process-call", response_model=CallResponse)
++async def process_call(request: CallRequest):
++    logger.info("Process an incoming call through the AI Receptionist workflow.")
++    try:
++        call_data = {
++            "caller_phone": request.caller_phone,
++            "speech_text": request.speech_text,
++            "call_sid": request.call_sid
++        }
++        
++        result = await workflow_runner.run_workflow(call_data)
++        
++        return CallResponse(**result)
++        
++    except Exception as e:
++        raise HTTPException(status_code=500, detail=f"Call processing failed: {str(e)}")
++
++
++@app.get("/")
++async def root():
++    """Root endpoint."""
++    return {
++        "message": "AI Receptionist System",
++        "version": "1.0.0",
++        "docs": "/docs"
++    }
++
++
++if __name__ == "__main__":
++    import uvicorn
++    uvicorn.run(app, host="0.0.0.0", port=8000)
++
++
++================================================================================
++FILE: __init__.py
++PATH: ./src/__init__.py
++TYPE: Python
++SIZE: 0 bytes
++================================================================================
++
++
++
++
++================================================================================
++FILE: PKG-INFO
++PATH: ./src/ai_receptionist_v2.egg-info/PKG-INFO
++TYPE: Unknown
++SIZE: 3,506 bytes
++================================================================================
++
++Metadata-Version: 2.4
++Name: ai-receptionist-v2
++Version: 0.1.0
++Summary: AI Receptionist system with Twilio integration, MongoDB, and LLM-based context building.
++Author-email: David Arago <davidarago@aragrow.me>
++Requires-Python: >=3.10
++Requires-Dist: aiofiles
++Requires-Dist: aiohappyeyeballs
++Requires-Dist: aiohttp
++Requires-Dist: aiosignal
++Requires-Dist: annotated-types
++Requires-Dist: anyio
++Requires-Dist: asyncio-throttle
++Requires-Dist: attrs
++Requires-Dist: backoff
++Requires-Dist: bson>=0.5.10
++Requires-Dist: cachetools
++Requires-Dist: certifi
++Requires-Dist: charset-normalizer
++Requires-Dist: click
++Requires-Dist: colorama
++Requires-Dist: dill
++Requires-Dist: dotenv>=0.9.9
++Requires-Dist: faker>=37.8.0
++Requires-Dist: fastapi>=0.117.1
++Requires-Dist: filetype
++Requires-Dist: frozenlist
++Requires-Dist: google-ai-generativelanguage
++Requires-Dist: google-api-core
++Requires-Dist: google-auth
++Requires-Dist: google-generativeai>=0.8.5
++Requires-Dist: googleapis-common-protos
++Requires-Dist: gql
++Requires-Dist: graphql-core
++Requires-Dist: grpcio
++Requires-Dist: grpcio-status
++Requires-Dist: h11
++Requires-Dist: httpcore
++Requires-Dist: httpx
++Requires-Dist: idna
++Requires-Dist: jsonpatch
++Requires-Dist: jsonpointer
++Requires-Dist: langchain
++Requires-Dist: langchain-core
++Requires-Dist: langchain-google-genai
++Requires-Dist: langchain-text-splitters
++Requires-Dist: langgraph
++Requires-Dist: langgraph-checkpoint
++Requires-Dist: langgraph-sdk
++Requires-Dist: langsmith
++Requires-Dist: mando
++Requires-Dist: markdown-it-py
++Requires-Dist: mdurl
++Requires-Dist: motor>=3.7.1
++Requires-Dist: multidict
++Requires-Dist: nltk>=3.9.1
++Requires-Dist: numpy
++Requires-Dist: orjson
++Requires-Dist: ormsgpack
++Requires-Dist: packaging
++Requires-Dist: pandas
++Requires-Dist: propcache
++Requires-Dist: proto-plus
++Requires-Dist: protobuf
++Requires-Dist: pyasn1
++Requires-Dist: pyasn1_modules
++Requires-Dist: pydantic
++Requires-Dist: pydantic-settings
++Requires-Dist: pydantic_core
++Requires-Dist: pymongo>=4.15.1
++Requires-Dist: pytest>=8.4.2
++Requires-Dist: pytest-asyncio>=1.2.0
++Requires-Dist: pytest-json-report>=1.5.0
++Requires-Dist: pytest-mock>=3.15.1
++Requires-Dist: python-dateutil
++Requires-Dist: python-dotenv
++Requires-Dist: pytz
++Requires-Dist: PyYAML
++Requires-Dist: requests
++Requires-Dist: requests-toolbelt
++Requires-Dist: rich
++Requires-Dist: rsa
++Requires-Dist: scikit-learn>=1.7.2
++Requires-Dist: sentence-transformers>=5.1.1
++Requires-Dist: six
++Requires-Dist: sniffio
++Requires-Dist: SQLAlchemy
++Requires-Dist: structlog
++Requires-Dist: tabulate>=0.9.0
++Requires-Dist: tenacity
++Requires-Dist: typing-inspection
++Requires-Dist: typing_extensions
++Requires-Dist: tzdata
++Requires-Dist: urllib3
++Requires-Dist: uv
++Requires-Dist: uvicorn>=0.37.0
++Requires-Dist: xxhash
++Requires-Dist: yarl
++Requires-Dist: zstandard
++Provides-Extra: dev
++Requires-Dist: mypy; extra == "dev"
++Requires-Dist: mypy_extensions; extra == "dev"
++Requires-Dist: pathspec; extra == "dev"
++Requires-Dist: platformdirs; extra == "dev"
++Requires-Dist: tomlkit; extra == "dev"
++Provides-Extra: linting
++Requires-Dist: black; extra == "linting"
++Requires-Dist: isort; extra == "linting"
++Requires-Dist: flake8; extra == "linting"
++Requires-Dist: pylint; extra == "linting"
++Requires-Dist: mccabe; extra == "linting"
++Requires-Dist: pycodestyle; extra == "linting"
++Requires-Dist: pyflakes; extra == "linting"
++Requires-Dist: radon; extra == "linting"
++Provides-Extra: testing
++Requires-Dist: pytest; extra == "testing"
++Requires-Dist: pytest-asyncio; extra == "testing"
++Requires-Dist: pytest-mock; extra == "testing"
++
++
++
++================================================================================
++FILE: SOURCES.txt
++PATH: ./src/ai_receptionist_v2.egg-info/SOURCES.txt
++TYPE: Text
++SIZE: 1,020 bytes
++================================================================================
++
++pyproject.toml
++src/__init__.py
++src/ai_receptionist_v2.egg-info/PKG-INFO
++src/ai_receptionist_v2.egg-info/SOURCES.txt
++src/ai_receptionist_v2.egg-info/dependency_links.txt
++src/ai_receptionist_v2.egg-info/requires.txt
++src/ai_receptionist_v2.egg-info/top_level.txt
++src/models/__init__.py
++src/models/database_models.py
++src/models/workflow_models.py
++src/nodes/__init__.py
++src/nodes/context_builder.py
++src/nodes/identity_checker.py
++src/nodes/intent_analyzer.py
++src/nodes/response_generator.py
++src/services/__init__.py
++src/services/context_service.py
++src/services/database_service.py
++src/services/embedding_service.py
++src/utilities/__init__.py
++src/utilities/generate_test_data.py
++src/utilities/phone_utils.py
++src/utilities/text_processing.py
++src/workflow/__init__.py
++src/workflow/ai_receptionist_workflow.py
++src/workflow/workflow_runner.py
++tests/test_access_control.py
++tests/test_models.py
++tests/test_nodes.py
++tests/test_performance.py
++tests/test_regression.py
++tests/test_services.py
++tests/test_utilites.py
++tests/test_workflow.py
++
++
++================================================================================
++FILE: dependency_links.txt
++PATH: ./src/ai_receptionist_v2.egg-info/dependency_links.txt
++TYPE: Text
++SIZE: 1 bytes
++================================================================================
++
++
++
++
++
++================================================================================
++FILE: requires.txt
++PATH: ./src/ai_receptionist_v2.egg-info/requires.txt
++TYPE: Text
++SIZE: 1,298 bytes
++================================================================================
++
++aiofiles
++aiohappyeyeballs
++aiohttp
++aiosignal
++annotated-types
++anyio
++asyncio-throttle
++attrs
++backoff
++bson>=0.5.10
++cachetools
++certifi
++charset-normalizer
++click
++colorama
++dill
++dotenv>=0.9.9
++faker>=37.8.0
++fastapi>=0.117.1
++filetype
++frozenlist
++google-ai-generativelanguage
++google-api-core
++google-auth
++google-generativeai>=0.8.5
++googleapis-common-protos
++gql
++graphql-core
++grpcio
++grpcio-status
++h11
++httpcore
++httpx
++idna
++jsonpatch
++jsonpointer
++langchain
++langchain-core
++langchain-google-genai
++langchain-text-splitters
++langgraph
++langgraph-checkpoint
++langgraph-sdk
++langsmith
++mando
++markdown-it-py
++mdurl
++motor>=3.7.1
++multidict
++nltk>=3.9.1
++numpy
++orjson
++ormsgpack
++packaging
++pandas
++propcache
++proto-plus
++protobuf
++pyasn1
++pyasn1_modules
++pydantic
++pydantic-settings
++pydantic_core
++pymongo>=4.15.1
++pytest>=8.4.2
++pytest-asyncio>=1.2.0
++pytest-json-report>=1.5.0
++pytest-mock>=3.15.1
++python-dateutil
++python-dotenv
++pytz
++PyYAML
++requests
++requests-toolbelt
++rich
++rsa
++scikit-learn>=1.7.2
++sentence-transformers>=5.1.1
++six
++sniffio
++SQLAlchemy
++structlog
++tabulate>=0.9.0
++tenacity
++typing-inspection
++typing_extensions
++tzdata
++urllib3
++uv
++uvicorn>=0.37.0
++xxhash
++yarl
++zstandard
++
++[dev]
++mypy
++mypy_extensions
++pathspec
++platformdirs
++tomlkit
++
++[linting]
++black
++isort
++flake8
++pylint
++mccabe
++pycodestyle
++pyflakes
++radon
++
++[testing]
++pytest
++pytest-asyncio
++pytest-mock
++
++
++
++================================================================================
++FILE: top_level.txt
++PATH: ./src/ai_receptionist_v2.egg-info/top_level.txt
++TYPE: Text
++SIZE: 50 bytes
++================================================================================
++
++__init__
++models
++nodes
++services
++utilities
++workflow
++
++
++
++================================================================================
++FILE: __init__.py
++PATH: ./src/models/__init__.py
++TYPE: Python
++SIZE: 0 bytes
++================================================================================
++
++
++
++
++================================================================================
++FILE: database_models.py
++PATH: ./src/models/database_models.py
++TYPE: Python
++SIZE: 3,604 bytes
++================================================================================
++
++# ==================== src/models/database_models.py ====================
++"""Database models for MongoDB collections using Pydantic."""
++
++from datetime import datetime
++from typing import Optional, List, Any
++from pydantic import BaseModel, Field, ConfigDict
++from bson import ObjectId
++
++
++class PyObjectId(ObjectId):
++    """Custom ObjectId class for Pydantic validation."""
++
++    @classmethod
++    def __get_validators__(cls):
++        yield cls.validate
++
++    @classmethod
++    def validate(cls, v: Any, info: Any = None):
++        """
++        Accept the optional 'info' arg that Pydantic v2 may supply.
++        This keeps backward compatible behavior for v1 and v2.
++        """
++        if isinstance(v, ObjectId):
++            return v
++        try:
++            # Coerce to string first to handle ObjectId objects and strings
++            v_str = str(v)
++            if not ObjectId.is_valid(v_str):
++                raise ValueError("Invalid ObjectId")
++            return ObjectId(v_str)
++        except Exception:
++            raise ValueError("Invalid ObjectId")
++
++    @classmethod
++    def __get_pydantic_json_schema__(cls, schema, handler):
++        """Ensure ObjectId is represented as string in JSON schema."""
++        schema = handler(schema)
++        schema.update(type="string")
++        return schema
++
++
++class BaseDocument(BaseModel):
++    """Base document with common fields for all collections."""
++
++    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
++    created_at: datetime = Field(default_factory=datetime.utcnow)
++    updated_at: datetime = Field(default_factory=datetime.utcnow)
++    notes: Optional[str] = None
++
++    model_config = ConfigDict(
++        populate_by_name=True,
++        arbitrary_types_allowed=True,
++        json_encoders={ObjectId: str},
++    )
++
++class AgentActionPrompt(BaseDocument):
++    """ Agent Action Prompts model."""
++
++    agent: str
++    action: str
++    prompt: str
++    active: bool = True
++    level: int
++
++class Client(BaseDocument):
++    """Client model."""
++
++    name: str
++    email: str
++    phone: str
++    address: str
++    address_1: Optional[str] = None
++    city: str
++    state: str
++    zip: str
++    country: str = "US"
++
++
++class Property(BaseDocument):
++    """Property model."""
++
++    client_id: PyObjectId
++    address: str
++    address_1: Optional[str] = None
++    city: str
++    state: str
++    zip: str
++    country: str = "US"
++    property_type: str  # residential, commercial
++    size: Optional[str] = None
++
++
++class Vendor(BaseDocument):
++    """Vendor model."""
++
++    name: str
++    contact_person: Optional[str] = None
++    phone: str
++    email: str
++    address: str
++    address_1: Optional[str] = None
++    city: str
++    state: str
++    zip: str
++    country: str = "US"
++    service_type: str  # plumbing, electrical, landscaping
++
++
++class Job(BaseDocument):
++    """Job model."""
++
++    property_id: PyObjectId
++    vendor_id: PyObjectId
++    title: str
++    description: str
++    status: str = "pending"  # pending, in-progress, completed
++    scheduled_date: Optional[datetime] = Field(default_factory=datetime.utcnow)
++    completion_date: Optional[datetime] = None
++
++
++class Visit(BaseDocument):
++    """Visit model."""
++
++    job_id: PyObjectId
++    visit_date: datetime = Field(default_factory=datetime.utcnow)
++    technician_name: str
++    report: Optional[str] = None
++    status: str = "scheduled"  # scheduled, completed, canceled
++
++
++class KnowledgeBase(BaseDocument):
++    """Knowledge base entry."""
++
++    entity_id: PyObjectId  # Reference to any entity
++    entity_type: str  # client, property, job, visit, vendor
++    content: str
++    embedding: List[float] = Field(default_factory=list)
++
++
++
++================================================================================
++FILE: workflow_models.py
++PATH: ./src/models/workflow_models.py
++TYPE: Python
++SIZE: 1,730 bytes
++================================================================================
++
++# ==================== src/models/workflow_models.py ====================
++"""Workflow state models."""
++
++from enum import Enum
++from typing import Optional, Dict, Any, List
++from pydantic import BaseModel
++from .database_models import Client, Vendor
++
++
++class CallerType(str, Enum):
++    """Types of callers."""
++    
++    CLIENT = "client"
++    VENDOR = "vendor"
++    LEAD = "lead"
++
++
++class Intent(str, Enum):
++    """Call intents."""
++    
++    GENERAL_INQUIRY = "general_inquiry"
++    SERVICE_INQUIRY = "service_inquiry"
++    SERVICE_REQUEST = "service_request"
++    STATUS_CHECK = "status_check"
++    COMPLAINT = "complaint"
++    SALES_INQUIRY = "sales_inquiry"
++    SCHEDULE_UPDATE = "schedule_update"
++    PROFILE_UPDATE = "profile_update"
++    OTHER = "other"
++
++
++class WorkflowState(BaseModel):
++    """Complete workflow state for AI Receptionist LangGraph workflow."""
++    
++    # Call information
++    call_sid: Optional[str] = None
++    caller_phone: Optional[str] = None
++    speech_text: Optional[str] = None
++    
++    # Caller identification
++    caller_type: Optional[CallerType] = None
++    caller_profile: Optional[Dict[str, Any]] = None
++    client: Optional[Client] = None
++    vendor: Optional[Vendor] = None
++    
++    # Intent and context
++    intent: Optional[Intent] = None
++    context_data: Dict[str, Any] = {}
++    conversation_history: List[Dict[str, str]] = []
++    
++    # Response generation
++    response_text: Optional[str] = None
++    next_action: Optional[str] = None
++    
++    # Processing flags
++    processed: bool = False
++    error_message: Optional[str] = None
++    
++    turn_count: Optional[int] = 0
++    time_details: Optional[str] = None
++    
++    agent_prompt: Optional[str] = None
++    
++    class Config:
++        use_enum_values = True
++
++
++================================================================================
++FILE: __init__.py
++PATH: ./src/nodes/__init__.py
++TYPE: Python
++SIZE: 0 bytes
++================================================================================
++
++
++
++
++================================================================================
++FILE: context_builder.py
++PATH: ./src/nodes/context_builder.py
++TYPE: Python
++SIZE: 1,201 bytes
++================================================================================
++
++# ==================== src/nodes/context_builder.py ====================
++"""Context builder node."""
++
++from src.models.workflow_models import WorkflowState, CallerType
++from src.services.context_service import ContextService
++
++
++class ContextBuilder:
++    """Node for building caller context."""
++    
++    def __init__(self, context_service: ContextService):
++        self.context_service = context_service
++    
++    async def __call__(self, state: WorkflowState) -> WorkflowState:
++        print("""Build context based on caller type.""")
++        try:
++            if state.caller_type == CallerType.CLIENT and state.client:
++                state.context_data = await self.context_service.build_client_context(state.client)
++            
++            elif state.caller_type == CallerType.VENDOR and state.vendor:
++                state.context_data = await self.context_service.build_vendor_context(state.vendor)
++            
++            else:  # LEAD
++                state.context_data = await self.context_service.build_lead_context()
++        
++        except Exception as e:
++            state.error_message = f"Context building failed: {str(e)}"
++            state.context_data = {}
++        
++        return state
++
++
++================================================================================
++FILE: identity_checker.py
++PATH: ./src/nodes/identity_checker.py
++TYPE: Python
++SIZE: 2,666 bytes
++================================================================================
++
++# ==================== src/nodes/identity_checker.py ====================
++"""Identity checker node for caller identification."""
++import logging
++# Get a logger instance for your module
++logger = logging.getLogger(__name__)
++# Set the logging level (e.g., INFO, DEBUG, WARNING, ERROR, CRITICAL)
++logger.setLevel(logging.INFO)
++import re
++from src.models.workflow_models import WorkflowState, CallerType
++from src.services.database_service import DatabaseService
++
++class IdentityChecker:
++    """Node for identifying callers."""
++    
++    def __init__(self, db_service: DatabaseService):
++        self.db_service = db_service
++    
++    async def __call__(self, state: WorkflowState) -> WorkflowState:
++        logger.info('Executing IdentityChecker')
++        logger.info(f"Inital state: {state}")
++        """Check caller identity."""
++        if not state.caller_phone:
++            state.caller_type = CallerType.LEAD
++            return state
++        
++        caller_phone = self.normalize_phone(state.caller_phone)
++        
++        try:
++            # Check if caller is a client
++            logger.info('Checking if caller is a client')
++            client = await self.db_service.find_client_by_phone(caller_phone)
++            logger.info('Checking Done')
++            if client:
++                logger.info('Caller is a client')
++                state.caller_type = CallerType.CLIENT
++                state.client = client
++                state.caller_profile = client.dict()
++                logger.info(state)
++                return state
++            else:
++                logger.info('Caller is not a client')
++            # Check if caller is a vendor
++            vendor = await self.db_service.find_vendor_by_phone(caller_phone)
++            if vendor:
++                state.caller_type = CallerType.VENDOR
++                state.vendor = vendor
++                state.caller_profile = vendor.dict()
++                return state
++            else:
++                logger.info('Caller is not a vendor')
++            # Default to lead
++            state.caller_type = CallerType.LEAD
++            
++        except Exception as e:
++            state.error_message = f"Identity check failed: {str(e)}"
++            state.caller_type = CallerType.LEAD
++        
++        return state
++    
++    def normalize_phone(self, number: str) -> str:
++        digits = re.sub(r"\D", "", number)  # Remove all non-digits
++        if len(digits) == 10:
++            return f"{digits[0:3]}-{digits[3:6]}-{digits[6:10]}"
++        elif len(digits) == 11 and digits[0] == "1":  # +1 prefix
++                return f"{digits[1:4]}-{digits[4:7]}-{digits[7:11]}"
++        raise ValueError("Phone must have 10 or 11 digits")
++
++
++================================================================================
++FILE: intent_analyzer.py
++PATH: ./src/nodes/intent_analyzer.py
++TYPE: Python
++SIZE: 3,514 bytes
++================================================================================
++
++# ==================== src/nodes/intent_analyzer.py ====================
++"""Intent analyzer node with Google Gemini integration."""
++import logging
++import json
++# Get a logger instance for your module
++logger = logging.getLogger(__name__)
++# Set the logging level (e.g., INFO, DEBUG, WARNING, ERROR, CRITICAL)
++logger.setLevel(logging.INFO)
++
++import re
++import os
++import json
++import google.generativeai as genai
++from src.models.workflow_models import WorkflowState, Intent
++from dotenv import load_dotenv
++from src.services.database_service import DatabaseService
++
++load_dotenv()
++
++class IntentAnalyzer:
++    """Node for analyzing caller intent using Google Gemini."""
++    
++    def __init__(self, db_service: DatabaseService):
++        self.db_service = db_service
++
++        # Configure Google AI with API key
++        api_key = os.getenv("LLM__GOOGLE_API_KEY")
++        if not api_key:
++            raise ValueError("API_KEY environment variable is required")
++        
++        genai.configure(api_key=api_key)
++
++        self.model_name = os.getenv("LLM__MODEL_NAME")
++        if not self.model_name:
++            raise ValueError("MODEL environment variable is required")
++        
++    async def _create_intent_prompt(self, state: WorkflowState) -> WorkflowState:
++        print("""Create a structured prompt for Gemini to analyze intent.""")
++        agent_prompt = await self.db_service.find_agent_action_prompt('receptionist','intent_analysis',1)
++        
++        # Build prompt dynamically with context
++        prompt = f"""
++            You are an AI receptionist assistant having a phone conversation. 
++            {agent_prompt}.
++
++            Current Context:
++            - Caller Type: {state.caller_type}
++            - Caller Speech: {state.speech_text}
++        """
++
++        state.agent_prompt = prompt
++        return state
++    
++    async def _analyze_with_gemini(self, state: WorkflowState) -> WorkflowState:
++        print("""Use Google Gemini to analyze intent.""")
++        try:
++            workflow_state = await self._create_intent_prompt(state)
++
++            # Configure Gemini model
++            model = genai.GenerativeModel(self.model_name)
++            
++            # Generate response
++            response = model.generate_content(workflow_state.agent_prompt)
++            
++            # Parse response
++            intent_value = response.text.strip().lower()
++            workflow_state.intent = intent_value
++            print(f"Intent: {intent_value}")
++            workflow_state.error_message = None
++            
++        except Exception as e:
++            print(f"⚠️ Gemini intent analysis failed: {e}")
++            workflow_state.error_message = f"⚠️ Gemini intent analysis failed: {e}"
++            workflow_state.intent = "Customer Service"
++            
++        return workflow_state
++
++    async def __call__(self, state: WorkflowState) -> WorkflowState:
++        workflow_state = state
++        """Analyze caller intent from speech using Gemini + regex fallback."""
++        if not state.speech_text:
++            workflow_state.intent = "Customer Service"
++            return state
++        
++        try:
++            # Primary: Use Gemini for intent analysis
++            workflow_state = await self._analyze_with_gemini(state)
++            
++        except Exception as e:
++            # Fallback: Use regex patterns
++            workflow_state.error_message = f"Intent analysis error: {str(e)}"
++            workflow_state.intent = self._fallback_regex_analysis(state.speech_text)
++        
++        return workflow_state
++
++
++================================================================================
++FILE: response_generator.py
++PATH: ./src/nodes/response_generator.py
++TYPE: Python
++SIZE: 5,843 bytes
++================================================================================
++
++# ==================== src/nodes/response_generator.py ====================
++"""Response generator node using Google Gemini."""
++
++import html
++import os
++import google.generativeai as genai
++from src.models.workflow_models import WorkflowState, CallerType, Intent
++from config.settings import settings
++from dotenv import load_dotenv
++from src.services.database_service import DatabaseService
++
++load_dotenv()
++
++class ResponseGenerator:
++    """Node for generating responses with Google Gemini."""
++        
++    def __init__(self):
++        self.db_service = DatabaseService
++
++        # Configure Gemini
++        api_key = os.getenv("LLM__GOOGLE_API_KEY")
++        if not api_key:
++            raise ValueError("API_KEY environment variable is required")
++        
++        genai.configure(api_key=api_key)
++
++        self.model_name = os.getenv("LLM__MODEL_NAME")
++        if not self.model_name:
++            raise ValueError("MODEL environment variable is required")
++
++    def _escape_output(self, text: str) -> str:
++        """Escape text for safe display."""
++        return html.escape(text)
++
++    async def __call__(self, state: WorkflowState) -> WorkflowState:
++        """Generate response using Gemini based on context and intent."""
++        try:
++            agent_prompt = await self.db_service.find_agent_action_prompt('receptionist','intent_analysis',1)
++            state.agent_prompt = agent_prompt.prompt
++            
++            # Initialize turn count if not present
++            if not hasattr(state, 'turn_count'):
++                state.turn_count = 0
++            state.turn_count += 1
++            
++            response = await self._generate_with_gemini(state)
++
++            # If Gemini fails or empty string, fall back to templates
++            if not response:
++                response = self._get_fallback_response(state)
++
++            # Assign response back into workflow state
++            state.response_text = self._escape_output(response)
++            state.next_action = 'WIP'
++
++        except Exception as e:
++            state.error_message = f"Response generation failed: {str(e)}"
++            state.response_text = "I apologize, but I'm having trouble processing your request right now."
++            state.next_action = "continue_conversation"
++
++        state.processed = True
++        return state
++
++    async def _generate_with_gemini(self, state: WorkflowState) -> str:
++        """Ask Gemini to generate a contextual, intent-aware response."""
++        try:
++            # Build conversation history
++            conversation_history = ""
++            if hasattr(state, 'conversation_history') and state.conversation_history:
++                history_items = []
++                for i, turn in enumerate(state.conversation_history[-3:]):  # Last 3 turns
++                    history_items.append(f"Turn {i+1}: Caller said '{turn.get('user_input', '')}' -> AI responded '{turn.get('response', '')}'")
++                conversation_history = "\n".join(history_items)
++            
++            # Build prompt dynamically with context
++            prompt = f"""
++                You are an AI receptionist assistant having a phone conversation. 
++                {WorkflowState.agent_prompt}.
++
++                Current Context:
++                - Caller Type: {state.caller_type.value}
++                - Turn Number: {state.turn_count}
++                - Caller Speech: "{state.speech_text}"
++
++                Previous Conversation:
++                {conversation_history}
++
++                Response:
++            """
++            
++            # Configure model with specific parameters for consistency
++            model = genai.GenerativeModel(
++                self.model_name,
++                generation_config={
++                    "temperature": 0.7,
++                    "max_output_tokens": 150,
++                    "stop_sequences": ["\n\n", "."]
++                }
++            )
++            
++            response = model.generate_content(prompt)
++            
++            result = response.text.strip() if response and response.text else None
++            
++            # Update conversation history
++            if not hasattr(state, 'conversation_history'):
++                state.conversation_history = []
++            
++            state.conversation_history.append({
++                'user_input': state.speech_text,
++                'response': result,
++                'intent': result,
++                'turn': state.turn_count
++            })
++            
++            # Keep only last 5 turns to prevent context overflow
++            if len(state.conversation_history) > 5:
++                state.conversation_history = state.conversation_history[-5:]
++
++            return result
++
++        except Exception as e:
++            print(f"⚠️ Gemini failed: {e}")
++            return None
++
++    def _get_fallback_response(self, state: WorkflowState) -> str:
++        """Fallback template when Gemini fails."""
++        caller_templates = self.templates.get(state.caller_type, {})
++        return caller_templates.get(state.intent, "Hello! How can I help you today?")
++
++    def _determine_next_action(self, state: WorkflowState) -> str:
++        """Decide what the workflow should do next."""
++        if state.intent == Intent.SERVICE_REQUEST:
++            return "schedule_service"
++        elif state.intent == Intent.STATUS_CHECK:
++            return "provide_status"
++        elif state.intent == Intent.COMPLAINT:
++            return "escalate_to_human"
++        elif state.intent == Intent.PROFILE_UPDATE:
++            return "authenticate_profile_update"
++        elif state.intent == Intent.SCHEDULE_UPDATE:
++            # Check if we have time details to confirm appointment
++            if hasattr(state, 'time_details') and state.time_details:
++                return "confirm_appointment"
++            return "reschedule_job"
++        else:
++            return "continue_conversation"
++
++
++================================================================================
++FILE: response_generator.v0.py
++PATH: ./src/nodes/response_generator.v0.py
++TYPE: Python
++SIZE: 5,843 bytes
++================================================================================
++
++# ==================== src/nodes/response_generator.py ====================
++"""Response generator node using Google Gemini."""
++
++import html
++import os
++import google.generativeai as genai
++from src.models.workflow_models import WorkflowState, CallerType, Intent
++from config.settings import settings
++from dotenv import load_dotenv
++from src.services.database_service import DatabaseService
++
++load_dotenv()
++
++class ResponseGenerator:
++    """Node for generating responses with Google Gemini."""
++        
++    def __init__(self):
++        self.db_service = DatabaseService
++
++        # Configure Gemini
++        api_key = os.getenv("LLM__GOOGLE_API_KEY")
++        if not api_key:
++            raise ValueError("API_KEY environment variable is required")
++        
++        genai.configure(api_key=api_key)
++
++        self.model_name = os.getenv("LLM__MODEL_NAME")
++        if not self.model_name:
++            raise ValueError("MODEL environment variable is required")
++
++    def _escape_output(self, text: str) -> str:
++        """Escape text for safe display."""
++        return html.escape(text)
++
++    async def __call__(self, state: WorkflowState) -> WorkflowState:
++        """Generate response using Gemini based on context and intent."""
++        try:
++            agent_prompt = await self.db_service.find_agent_action_prompt('receptionist','intent_analysis',1)
++            state.agent_prompt = agent_prompt.prompt
++            
++            # Initialize turn count if not present
++            if not hasattr(state, 'turn_count'):
++                state.turn_count = 0
++            state.turn_count += 1
++            
++            response = await self._generate_with_gemini(state)
++
++            # If Gemini fails or empty string, fall back to templates
++            if not response:
++                response = self._get_fallback_response(state)
++
++            # Assign response back into workflow state
++            state.response_text = self._escape_output(response)
++            state.next_action = 'WIP'
++
++        except Exception as e:
++            state.error_message = f"Response generation failed: {str(e)}"
++            state.response_text = "I apologize, but I'm having trouble processing your request right now."
++            state.next_action = "continue_conversation"
++
++        state.processed = True
++        return state
++
++    async def _generate_with_gemini(self, state: WorkflowState) -> str:
++        """Ask Gemini to generate a contextual, intent-aware response."""
++        try:
++            # Build conversation history
++            conversation_history = ""
++            if hasattr(state, 'conversation_history') and state.conversation_history:
++                history_items = []
++                for i, turn in enumerate(state.conversation_history[-3:]):  # Last 3 turns
++                    history_items.append(f"Turn {i+1}: Caller said '{turn.get('user_input', '')}' -> AI responded '{turn.get('response', '')}'")
++                conversation_history = "\n".join(history_items)
++            
++            # Build prompt dynamically with context
++            prompt = f"""
++                You are an AI receptionist assistant having a phone conversation. 
++                {WorkflowState.agent_prompt}.
++
++                Current Context:
++                - Caller Type: {state.caller_type.value}
++                - Turn Number: {state.turn_count}
++                - Caller Speech: "{state.speech_text}"
++
++                Previous Conversation:
++                {conversation_history}
++
++                Response:
++            """
++            
++            # Configure model with specific parameters for consistency
++            model = genai.GenerativeModel(
++                self.model_name,
++                generation_config={
++                    "temperature": 0.7,
++                    "max_output_tokens": 150,
++                    "stop_sequences": ["\n\n", "."]
++                }
++            )
++            
++            response = model.generate_content(prompt)
++            
++            result = response.text.strip() if response and response.text else None
++            
++            # Update conversation history
++            if not hasattr(state, 'conversation_history'):
++                state.conversation_history = []
++            
++            state.conversation_history.append({
++                'user_input': state.speech_text,
++                'response': result,
++                'intent': result,
++                'turn': state.turn_count
++            })
++            
++            # Keep only last 5 turns to prevent context overflow
++            if len(state.conversation_history) > 5:
++                state.conversation_history = state.conversation_history[-5:]
++
++            return result
++
++        except Exception as e:
++            print(f"⚠️ Gemini failed: {e}")
++            return None
++
++    def _get_fallback_response(self, state: WorkflowState) -> str:
++        """Fallback template when Gemini fails."""
++        caller_templates = self.templates.get(state.caller_type, {})
++        return caller_templates.get(state.intent, "Hello! How can I help you today?")
++
++    def _determine_next_action(self, state: WorkflowState) -> str:
++        """Decide what the workflow should do next."""
++        if state.intent == Intent.SERVICE_REQUEST:
++            return "schedule_service"
++        elif state.intent == Intent.STATUS_CHECK:
++            return "provide_status"
++        elif state.intent == Intent.COMPLAINT:
++            return "escalate_to_human"
++        elif state.intent == Intent.PROFILE_UPDATE:
++            return "authenticate_profile_update"
++        elif state.intent == Intent.SCHEDULE_UPDATE:
++            # Check if we have time details to confirm appointment
++            if hasattr(state, 'time_details') and state.time_details:
++                return "confirm_appointment"
++            return "reschedule_job"
++        else:
++            return "continue_conversation"
++
++
++================================================================================
++FILE: __init__.py
++PATH: ./src/services/__init__.py
++TYPE: Python
++SIZE: 0 bytes
++================================================================================
++
++
++
++
++================================================================================
++FILE: context_service.py
++PATH: ./src/services/context_service.py
++TYPE: Python
++SIZE: 3,956 bytes
++================================================================================
++
++# ==================== src/services/context_service.py ====================
++"""Context service for building caller context."""
++
++from typing import Dict, Any, List
++from bson import ObjectId
++import sys
++from src.models.workflow_models import WorkflowState, CallerType
++from src.models.database_models import Client, Vendor
++from .database_service import DatabaseService
++
++
++class ContextService:
++    
++    def __init__(self, db_service: DatabaseService):
++        print("Initializing ContextService")
++        self.db_service = db_service
++    
++    async def build_client_context(self, client: Client) -> Dict[str, Any]:
++        print("""Build comprehensive context for a client.""")
++        try:
++            context = {
++                "client": client.dict(),
++                "properties": [],
++                "jobs": [],
++                "visits": [],
++                "vendors": []
++            }
++            
++            # Get client properties
++            properties = await self.db_service.get_client_properties(client.id)
++            context["properties"] = [prop.dict() for prop in properties]
++            
++            # Get jobs for all properties
++            all_jobs = []
++            vendor_ids = set()
++            
++            for prop in properties:
++                jobs = await self.db_service.get_property_jobs(prop.id)
++                all_jobs.extend(jobs)
++                vendor_ids.update(job.vendor_id for job in jobs)
++            
++            context["jobs"] = [job.dict() for job in all_jobs]
++            
++            # Get visits for all jobs
++            all_visits = []
++            for job in all_jobs:
++                visits = await self.db_service.get_job_visits(job.id)
++                all_visits.extend(visits)
++            
++            context["visits"] = [visit.dict() for visit in all_visits]
++            
++            # Get vendor information
++            vendors = []
++            for vendor_id in vendor_ids:
++                vendor_doc = await self.db_service.db.vendors.find_one({"_id": vendor_id})
++                if vendor_doc:
++                    vendors.append(Vendor(**vendor_doc).dict())
++            
++            context["vendors"] = vendors
++        except Exception as e:
++            print (f"Errror Build comprehensive context for a client: {str(e)}")
++            sys.exit(1)  
++
++        return context
++    
++    async def build_vendor_context(self, vendor: Vendor) -> Dict[str, Any]:
++        """Build comprehensive context for a vendor."""
++        context = {
++            "vendor": vendor.dict(),
++            "jobs": [],
++            "visits": [],
++            "clients": []
++        }
++        
++        # Get vendor jobs
++        jobs = await self.db_service.get_vendor_jobs(vendor.id)
++        context["jobs"] = [job.dict() for job in jobs]
++        
++        # Get visits and clients for vendor jobs
++        all_visits = []
++        client_ids = set()
++        
++        for job in jobs:
++            visits = await self.db_service.get_job_visits(job.id)
++            all_visits.extend(visits)
++            
++            # Get property to find client
++            prop_doc = await self.db_service.db.properties.find_one({"_id": job.property_id})
++            if prop_doc:
++                client_ids.add(prop_doc["client_id"])
++        
++        context["visits"] = [visit.dict() for visit in all_visits]
++        
++        # Get client information
++        clients = []
++        for client_id in client_ids:
++            client_doc = await self.db_service.db.clients.find_one({"_id": client_id})
++            if client_doc:
++                clients.append(Client(**client_doc).dict())
++        
++        context["clients"] = clients
++        
++        return context
++    
++    async def build_lead_context(self) -> Dict[str, Any]:
++        """Build limited context for leads."""
++        return {
++            "general_info": "Welcome to our service. How can we help you today?",
++            "services": ["Property Management", "Maintenance", "Repairs"]
++        }
++
++
++================================================================================
++FILE: database_service.py
++PATH: ./src/services/database_service.py
++TYPE: Python
++SIZE: 5,729 bytes
++================================================================================
++
++# ==================== src/services/database_service.py ====================
++"""Database service for MongoDB operations."""
++
++import asyncio
++import html
++from typing import Optional, List, Dict, Any
++from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
++from bson import ObjectId
++import sys
++from config.settings import settings
++from src.models.database_models import (
++    Client, Property, Job, Visit, Vendor, KnowledgeBase, AgentActionPrompt
++)
++
++
++class DatabaseService:
++    """Service for database operations."""
++    
++    def __init__(self):
++        self.client: Optional[AsyncIOMotorClient] = None
++        self.db: Optional[AsyncIOMotorDatabase] = None
++    
++    async def connect(self):
++        """Connect to MongoDB."""
++        self.client = AsyncIOMotorClient(settings.database.mongodb_url)
++        self.db = self.client[settings.database.database_name]
++    
++    async def disconnect(self):
++        """Disconnect from MongoDB."""
++        if self.client:
++            self.client.close()
++    
++    def _sanitize_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
++        """Sanitize data before saving to database."""
++        sanitized = {}
++        for key, value in data.items():
++            if isinstance(value, str):
++                # Remove potentially harmful characters
++                sanitized[key] = html.escape(value.strip())
++            else:
++                sanitized[key] = value
++        return sanitized
++    
++    async def find_agent_action_prompt(self, agent: str, action: str, level: int = 1) -> str:
++        print("Searching for prompt:", repr(agent), repr(action), repr(level))
++        try:
++            result = await self.db.agent_action_prompts.find_one({"agent": agent, "action": action, "level": level, "active": True}, {"_id": 0, "agent": 0, "action": 0, "level": 0, "active": 0})
++            print("Searching for prompt (repr):", repr(agent), repr(action), repr(level))
++            print("DB name:", getattr(self.db, 'name', '<unknown>'))
++            print("Collections:", await self.db.list_collection_names())
++            print("Result:", result)
++            result = result if result else None
++        except Exception as e:
++            print (f"Errror Finding Agent Action Prompt: {str(e)}")
++            sys.exit(1)    
++
++        return result    
++
++    async def find_client_by_phone(self, phone: str) -> Optional[Client]:
++        """
++           Find client by phone number.
++           The ** is Python's dictionary unpacking operator.It converts dictionary key-value pairs into named arguments
++        """
++        try:
++            result = await self.db.clients.find_one({"phone": phone}, {"embeddings": 0})
++            print("Searching for phone (repr):", repr(phone))
++            print("Type:", type(phone))
++            print("DB name:", getattr(self.db, 'name', '<unknown>'))
++            print("Collections:", await self.db.list_collection_names())
++            print("Result:", result)
++            result = Client(**result) if result else None
++        except Exception as e:
++            print (f"Errror Finding Client: {str(e)}")
++            sys.exit(1)    
++
++        return result
++    
++    async def find_vendor_by_phone(self, phone: str) -> Optional[Vendor]:
++        """Find vendor by phone number."""
++        result = await self.db.vendors.find_one({"phone": phone})
++        print("Searching for phone (repr):", repr(phone))
++        print("Type:", type(phone))
++        print("DB name:", getattr(self.db, 'name', '<unknown>'))
++        print("Collections:", await self.db.list_collection_names())
++        return Vendor(**result) if result else None
++    
++    async def get_client_properties(self, client_id: ObjectId) -> List[Property]:
++        """Get all properties for a client."""
++        cursor = self.db.properties.find({"client_id": client_id})
++        properties = []
++        async for doc in cursor:
++            properties.append(Property(**doc))
++        return properties
++    
++    async def get_property_jobs(self, property_id: ObjectId) -> List[Job]:
++        """Get all jobs for a property."""
++        cursor = self.db.jobs.find({"property_id": property_id})
++        jobs = []
++        async for doc in cursor:
++            jobs.append(Job(**doc))
++        return jobs
++    
++    async def get_job_visits(self, job_id: ObjectId) -> List[Visit]:
++        """Get all visits for a job."""
++        cursor = self.db.visits.find({"job_id": job_id})
++        visits = []
++        async for doc in cursor:
++            visits.append(Visit(**doc))
++        return visits
++    
++    async def get_vendor_jobs(self, vendor_id: ObjectId) -> List[Job]:
++        """Get all jobs for a vendor."""
++        cursor = self.db.jobs.find({"vendor_id": vendor_id})
++        jobs = []
++        async for doc in cursor:
++            jobs.append(Job(**doc))
++        return jobs
++    
++    async def search_knowledge_base(
++        self, 
++        entity_ids: List[ObjectId], 
++        query_embedding: List[float],
++        limit: int = 10
++    ) -> List[KnowledgeBase]:
++        """Search knowledge base using vector similarity."""
++        # Simple implementation - in production use vector search
++        pipeline = [
++            {"$match": {"entity_id": {"$in": entity_ids}}},
++            {"$limit": limit}
++        ]
++        
++        cursor = self.db.knowledge_base.aggregate(pipeline)
++        results = []
++        async for doc in cursor:
++            results.append(KnowledgeBase(**doc))
++        return results
++    
++    async def save_knowledge_base_entry(self, entry: KnowledgeBase) -> ObjectId:
++        """Save knowledge base entry."""
++        sanitized_data = self._sanitize_data(entry.dict(by_alias=True))
++        result = await self.db.knowledge_base.insert_one(sanitized_data)
++        return result.inserted_id
++
++
++================================================================================
++FILE: embedding_service.py
++PATH: ./src/services/embedding_service.py
++TYPE: Python
++SIZE: 5,288 bytes
++================================================================================
++
++# ==================== src/services/embedding_service.py ====================
++"""Embedding service for text vectorization using Google's text-embedding-004."""
++
++import os
++import re
++from dotenv import load_dotenv
++from typing import List, Optional
++import google.generativeai as genai
++from google.generativeai.types import EmbedContentResponse
++
++from config.settings import settings
++
++# Load .env into environment (default: project root directory)
++load_dotenv()
++
++class EmbeddingService:
++    """Service for text embedding using Google's text-embedding-004 model."""
++    
++    def __init__(self):
++        # Configure Google AI with API key
++        api_key = os.getenv("LLM__GOOGLE_API_KEY")
++        if not api_key:
++            raise ValueError("API_KEY environment variable is required")
++        
++        genai.configure(api_key=api_key)
++
++        self.model_name = os.getenv("LLM__MODEL_NAME")
++        if not self.model_name:
++            raise ValueError("MODEL environment variable is required")
++
++        # Verify model is available
++        try:
++            # Test with a simple embedding
++            test_response = genai.embed_content(
++                model=self.model_name,
++                content="test"
++            )
++            self.embedding_dim = len(test_response['embedding'])
++            print(f"✅ Google text-embedding-004 initialized (dim: {self.embedding_dim})")
++        except Exception as e:
++            raise RuntimeError(f"Failed to initialize text-embedding-004: {e}")
++    
++    def preprocess_text(self, text: str) -> str:
++        """Preprocess text for embedding."""
++        if not text or not text.strip():
++            return ""
++        
++        # Convert to string if not already
++        text = str(text).strip()
++        
++        # Remove excessive whitespace
++        text = re.sub(r'\s+', ' ', text)
++        
++        return text
++    
++    def chunk_text(self, text: str) -> List[str]:
++        """Break text into chunks if it's over the token limit."""
++        if not text:
++            return [""]
++        
++        # Google's text-embedding-004 has a context length of ~2048 tokens
++        # Rough estimate: 1 token ≈ 4 characters
++        max_chars = getattr(settings.embedding, 'max_chars', 8000)  # ~2000 tokens
++        chunk_overlap = getattr(settings.embedding, 'chunk_overlap', 200)
++        
++        if len(text) <= max_chars:
++            return [text]
++        
++        chunks = []
++        start = 0
++        
++        while start < len(text):
++            end = start + max_chars
++            
++            # If not the last chunk, try to break at sentence boundary
++            if end < len(text):
++                # Look for sentence endings within the last 200 chars
++                search_start = max(start + max_chars - 200, start)
++                sentence_end = max(
++                    text.rfind('.', search_start, end),
++                    text.rfind('!', search_start, end),
++                    text.rfind('?', search_start, end)
++                )
++                
++                if sentence_end > start:
++                    end = sentence_end + 1
++            
++            chunk = text[start:end].strip()
++            if chunk:
++                chunks.append(chunk)
++            
++            # Move start position with overlap
++            start = end - chunk_overlap
++            if start >= len(text):
++                break
++        
++        return chunks if chunks else [""]
++    
++    def create_embedding(self, text: str) -> List[float]:
++        """Create embedding for text using Google's text-embedding-004."""
++        if not text or not text.strip():
++            return [0.0] * getattr(self, 'embedding_dim', 768)
++        
++        processed_text = self.preprocess_text(text)
++        
++        try:
++            response = genai.embed_content(
++                model=self.model_name,
++                content=processed_text,
++                task_type="retrieval_document"  # Optimize for document retrieval
++            )
++            
++            return response['embedding']
++            
++        except Exception as e:
++            print(f"⚠️ Embedding failed for text (len={len(text)}): {e}")
++            # Return zero vector if embedding fails
++            return [0.0] * getattr(self, 'embedding_dim', 768)
++    
++    def create_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
++        """Create embeddings for multiple texts."""
++        embeddings = []
++        
++        for text in texts:
++            embedding = self.create_embedding(text)
++            embeddings.append(embedding)
++        
++        return embeddings
++    
++    def embed_query(self, query: str) -> List[float]:
++        """Create embedding optimized for query/search."""
++        if not query or not query.strip():
++            return [0.0] * getattr(self, 'embedding_dim', 768)
++        
++        processed_query = self.preprocess_text(query)
++        
++        try:
++            response = genai.embed_content(
++                model=self.model_name,
++                content=processed_query,
++                task_type="retrieval_query"  # Optimize for query
++            )
++            
++            return response['embedding']
++            
++        except Exception as e:
++            print(f"⚠️ Query embedding failed: {e}")
++            return [0.0] * getattr(self, 'embedding_dim', 768)
++
++
++================================================================================
++FILE: __init__.py
++PATH: ./src/utilities/__init__.py
++TYPE: Python
++SIZE: 0 bytes
++================================================================================
++
++
++
++
++================================================================================
++FILE: generate_test_data.py
++PATH: ./src/utilities/generate_test_data.py
++TYPE: Python
++SIZE: 47,615 bytes
++================================================================================
++
++import uuid
++import random
++import faker
++import os
++import json
++import sys
++from bson import ObjectId
++
++from datetime import datetime, timedelta
++from pymongo import MongoClient
++from pymongo.errors import ConnectionFailure, OperationFailure, ServerSelectionTimeoutError, CollectionInvalid
++from dotenv import load_dotenv
++
++# NEW: Google embeddings
++import google.generativeai as genai
++
++# Load .env file into environment
++load_dotenv()
++
++# Configure Google AI
++GOOGLE_API_KEY = os.getenv("LLM__GOOGLE_API_KEY")
++if not GOOGLE_API_KEY:
++    raise ValueError("GOOGLE_API_KEY is required in your environment (.env)")
++genai.configure(api_key=GOOGLE_API_KEY)
++
++# Database configuration from environment variables
++MONGO_URI = os.getenv("DATABASE__MONGODB_URL", "mongodb://localhost:27017/")
++print(MONGO_URI)  # consider masking in production
++DATABASE_NAME = os.getenv("DATABASE__DATABASE_NAME", "ai_receptionist")
++
++# You can still keep this var to switch providers if desired, but it isn't used by sentence-transformers anymore.
++EMBEDDING_MODEL = os.getenv("EMBEDDING__EMBEDDING_MODEL", "models/text-embedding-004")
++COLLECTIONS = ["vendors", "clients", "properties", "jobs", "visits", "knowledge_base"]
++
++fake = faker.Faker()
++
++# Embedding helper using Google text-embedding-004
++EMBEDDING_DIM_FALLBACK = 768  # current dimension for text-embedding-004
++
++def create_google_embedding(text: str) -> list[float]:
++    """
++    Create an embedding using Google's text-embedding-004.
++    Returns a float vector; on error returns a zero vector fallback.
++    """
++    try:
++        if not text or not text.strip():
++            return [0.0] * EMBEDDING_DIM_FALLBACK
++        response = genai.embed_content(
++            model="models/text-embedding-004",
++            content=text,
++            task_type="retrieval_document"
++        )
++        # genai returns a dict-like with 'embedding'
++        vec = response.get("embedding") if isinstance(response, dict) else getattr(response, "embedding", None)
++        if isinstance(vec, list) and vec:
++            return vec
++        return [0.0] * EMBEDDING_DIM_FALLBACK
++    except Exception as e:
++        print(f"⚠️ Embedding failed: {e}")
++        return [0.0] * EMBEDDING_DIM_FALLBACK
++
++def create_database_and_collections(connection_string=None):
++    print("Executing create_database_and_collections")
++    """
++    Create the database and collections for the AI receptionist system.
++    
++    Args:
++        connection_string (str): MongoDB connection string
++        
++    Returns:
++        MongoClient: MongoDB client instance
++    """
++    try:
++        # Prefer env var if not provided
++        connection_string = connection_string or MONGO_URI
++
++        # Connect to MongoDB
++        client = MongoClient(connection_string)
++        
++        # Test the connection
++        client.admin.command('ping')
++        print(f"✅ Connected to MongoDB successfully")
++        
++        # Get or create the database
++        db = client[DATABASE_NAME]
++        print(f"✅ Database '{DATABASE_NAME}' ready")
++        
++        # Create collections
++        existing_collections = db.list_collection_names()
++        
++        for collection_name in COLLECTIONS:
++            if collection_name not in existing_collections:
++                db.create_collection(collection_name)
++                print(f"✅ Created collection: {collection_name}")
++            else:
++                print(f"📋 Collection '{collection_name}' already exists")
++        
++        return client
++        
++    except ConnectionFailure as e:
++        print(f"❌ Failed to connect to MongoDB: {e}")
++        return None
++    except Exception as e:
++        print(f"❌ Error creating database/collections: {e}")
++        return None
++
++def insert_data_to_mongodb(client, vendors, clients, properties, jobs, visits, kb):
++    print("Executing insert_data_to_mongodb")
++    """
++    Insert generated data into MongoDB collections.
++    
++    Args:
++        client: MongoDB client instance
++        vendors, clients, properties, jobs, visits, kb: Generated data lists
++    """
++    if not client:
++        print("❌ No MongoDB client available")
++        return
++    
++    try:
++        db = client[DATABASE_NAME]
++        
++        # Clear existing data (optional - remove if you want to append)
++        print("🗑️  Clearing existing data...")
++        for collection_name in COLLECTIONS:
++            db[collection_name].delete_many({})
++        
++        # Insert data
++        collections_data = {
++            "vendors": vendors,
++            "clients": clients,
++            "properties": properties,
++            "jobs": jobs,
++            "visits": visits,
++            "knowledge_base": kb
++        }
++        
++        for collection_name, data in collections_data.items():
++            if data:
++                result = db[collection_name].insert_many(data)
++                print(f"✅ Inserted {len(result.inserted_ids)} documents into '{collection_name}'")
++            else:
++                print(f"⚠️  No data to insert into '{collection_name}'")
++                
++        print("🎉 All data inserted successfully!")
++        
++    except Exception as e:
++        print(f"❌ Error inserting data: {e}")
++
++def generate_guid():
++    return str(uuid.uuid4())
++
++def generate_vendors(n=25):
++    print("Executing generate_vendors")
++    vendors = []
++    for _ in range(n):
++        vendors.append({
++            "_id": ObjectId(),
++            "name": fake.company(),
++            "contact_person": fake.name(),
++            "phone": fake.phone_number(),
++            "email": fake.company_email(),
++            "address": fake.street_address(),
++            "address_1": fake.secondary_address(),
++            "city": fake.city(),
++            "state": fake.state_abbr(),
++            "zip": fake.zipcode(),
++            "country": "USA",
++            "service_type": random.choice(["residential_cleaning", "commercial_cleaning"]),
++            "notes": f"Business Hours: {get_vendor_business_hours()}. Services: {get_vendor_services()}"
++        })
++    return vendors
++
++def generate_clients(n=25, vendors=[]):
++    print("Executing generate_clients")
++    clients, properties, jobs, visits, kb = [], [], [], [], []
++    
++    for _ in range(n):
++        client_id = ObjectId()
++        client_city = fake.city()
++        client = {
++            "_id": client_id,
++            "name": fake.name(),
++            "email": fake.email(),
++            "phone": fake.phone_number(),
++            "address": fake.street_address(),
++            "address_1": fake.secondary_address(),
++            "city": client_city,
++            "state": fake.state_abbr(),
++            "zip": fake.zipcode(),
++            "country": "USA",
++            "notes": get_client_notes()
++        }
++        clients.append(client)
++        kb_id = ObjectId()
++        kb.append({
++            "_id": kb_id, 
++            "entity_id": client_id,
++            "content": f"Client {client['name']} in {client_city}. Notes: {client['notes']}",
++            "embedding": []
++        })
++
++        # Properties
++        for _ in range(random.randint(2, 5)):
++            property_id = ObjectId()
++            property_obj = {
++                "_id": property_id,
++                "client_id": client_id,
++                "address": fake.street_address(),
++                "address_1": fake.secondary_address(),
++                "city": client_city,
++                "state": fake.state_abbr(),
++                "zip": fake.zipcode(),
++                "country": "USA",
++                "property_type": random.choice(["residential", "commercial", "residential/commercial"]),
++                "size": f"{random.randint(800, 5000)} sqft",
++                "notes": get_property_notes()
++            }
++            properties.append(property_obj)
++            kb_id = ObjectId()
++            kb.append({
++                "_id": kb_id,
++                "entity_id": property_id,
++                "content": f"Property in {client_city}, type {property_obj['property_type']}, size {property_obj['size']}. Notes: {property_obj['notes']}",
++                "embedding": []
++            })
++
++            # Jobs
++            num_jobs = random.randint(1, 4)
++            active_job_index = random.randint(0, num_jobs - 1)
++
++            for j in range(num_jobs):
++                job_id = ObjectId()
++                vendor = random.choice([v for v in vendors if v["city"] == client_city] or vendors)
++                scheduled_date = datetime.now() + timedelta(days=random.randint(1, 30))
++                status = "in-progress" if j == active_job_index else "completed"
++
++                job_obj = {
++                    "_id": job_id,
++                    "property_id": property_id,
++                    "vendor_id": vendor["_id"],
++                    "title": f"{random.choice(['Weekly', 'Bi-weekly', 'Monthly'])} Cleaning",
++                    "description": random.choice([
++                        "Full cleaning of kitchen, bathrooms, and living areas.",
++                        "Deep cleaning of carpets and windows.",
++                        "Office cleaning including meeting rooms and restrooms."
++                    ]),
++                    "status": status,
++                    "scheduled_date": scheduled_date.isoformat(),
++                    "completion_date": "" if status != "completed" else (scheduled_date + timedelta(days=1)).isoformat(),
++                    "notes": get_job_notes()
++                }
++                jobs.append(job_obj)
++                kb_id = ObjectId()
++                kb.append({
++                    "_id": kb_id,
++                    "entity_id": job_id,
++                    "content": f"Job {job_obj['title']} for property {property_id}. Status: {status}. Notes: {job_obj['notes']}",
++                    "embedding": []
++                })
++
++                # Visits
++                visit_id = ObjectId()
++                visit_obj = {
++                    "_id": visit_id,
++                    "job_id": job_id,
++                    "visit_date": scheduled_date.isoformat(),
++                    "technician_name": fake.name(),
++                    "report": "" if status != "completed" else "Job completed successfully.",
++                    "status": "scheduled" if status == "in-progress" else "completed",
++                    "notes": get_visit_notes()
++                }
++                visits.append(visit_obj)
++
++                kb_id = ObjectId()
++                kb.append({
++                    "_id": kb_id,
++                    "entity_id": visit_id,
++                    "entity_type": "visit",
++                    "content": f"Visit for job {job_id} on {visit_obj['visit_date']} by {visit_obj['technician_name']}. Status: {visit_obj['status']}. Notes: {visit_obj['notes']}",
++                    "embedding": []
++                })
++
++    return clients, properties, jobs, visits, kb
++
++def add_embeddings_to_object(obj):
++    """
++    Vectorize all fields in an object except '_id' and add to 'embeddings' field.
++    Uses Google's text-embedding-004.
++    """
++    obj_copy = obj.copy()
++    
++    # Extract all fields except '_id' and 'embeddings'
++    text_fields = []
++    for key, value in obj.items():
++        if key not in ['_id', 'embeddings']:
++            text_fields.append(f"{key}: {str(value)}")
++    
++    combined_text = " | ".join(text_fields)
++    embedding = create_google_embedding(combined_text)
++    obj_copy['embeddings'] = embedding
++    
++    return obj_copy
++
++def add_embeddings_to_collection(collection_list):
++    print("Executing add_embeddings_to_collection")
++    """
++    Add embeddings to all objects in a collection.
++    """
++    return [add_embeddings_to_object(obj) for obj in collection_list]
++
++def validate_client(client: MongoClient) -> None:
++    try:
++        client.admin.command("ping")
++        _ = client.server_info()
++        print("✅ MongoDB client connected (ping ok)")
++        return True
++    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
++        print(f"❌ Cannot connect to MongoDB server: {e}")
++        sys.exit(1)
++
++def validate_database(client: MongoClient, db_name: str):
++    try:
++        db = client[db_name]
++        _ = db.list_collection_names()
++        print(f"✅ Database accessible: {db_name}")
++        return db
++    except OperationFailure as e:
++        print(f"❌ Cannot access database '{db_name}': {e}")
++        sys.exit(1)
++
++def validate_collections(db, required_collections: list[str], test_write: bool = False):
++    try:
++        existing = set(db.list_collection_names())
++        missing = [c for c in required_collections if c not in existing]
++        if missing:
++            print(f"⚠️ Missing collections (not yet created): {missing}")
++        else:
++            print("✅ All required collections exist")
++
++        for name in required_collections:
++            coll = db[name]
++            try:
++                _ = coll.estimated_document_count()
++                print(f"✅ Readable collection: {name}")
++            except OperationFailure as e:
++                raise RuntimeError(f"❌ Cannot read collection '{name}': {e}")
++        return True
++    except Exception as e:
++        print(f"❌ Error validating collections: {e}")
++        sys.exit(1)
++
++def get_client_notes():
++    notes = [
++        "Bill monthly and send invoice via email only. Requires supervisor check after each visit. Client requests lavender-scented air freshener provided in cabinet.",
++        "Prefers Saturday morning cleanings. Has two cats — keep them indoors and do not use strong chemicals. Bathrooms must be stocked with toilet paper and soap after cleaning.",
++        "Client pays via credit card on file. Avoid parking in driveway. Clean barbecue grill in summer months and store cover after cleaning.",
++        "Windows to be cleaned quarterly. Dust blinds using microfiber wand only. Client works from home, avoid office area between 9–5 unless approved.",
++        "Fragrance-free cleaning products required due to allergies. Remove fingerprints from stainless appliances weekly. Change bed linens every Friday.",
++        "Send digital receipt immediately after payment. Collect recycling separately and leave outside by garage. Sanitize kitchen sink daily using vinegar-based spray.",
++        "Requires special hardwood cleaner located in closet. Mop floors with hot water only. Deep clean carpets every 3 months using steam cleaner.",
++        "Polish silverware monthly and store in designated cabinet. Sweep balcony weekly. Children’s bedrooms require toys organized by bins.",
++        "Shoes off policy inside home. Client sensitive to noise, so use cordless vacuum only after 1 p.m. Clean dishwasher filter every 3 months.",
++        "Client travels frequently. Leave checklist signed on counter. Always lock back door and test before leaving. Collect mail and place on kitchen counter.",
++        "Garage and basement excluded from cleaning. Dust bookshelves with microfiber only. Client allergic to citrus cleaners — avoid lemon/orange products.",
++        "Laundry service included every second visit. Fold clothes KonMari style. Restock guest bathroom towels from linen closet.",
++        "Trash pickup on Fridays. Ensure bins are taken out Thursday evening. Sweep driveway once a month, especially in fall season.",
++        "Clean ceiling fans monthly. Use stainless steel cleaner on appliances under sink. Refill water pitcher in fridge after each visit.",
++        "Client expects arrival within 15 minutes of scheduled time. Notify if late. Keep thermostat set at 72°F and do not adjust settings.",
++        "Polish wood banisters monthly with beeswax polish provided. Garage floor should be swept monthly with no chemicals. Clean under beds every visit.",
++        "Client prefers direct phone calls, not texts. Always refill pet water bowls and follow feeding instructions. Vacuum sofa cushions every visit.",
++        "Collect mail from mailbox and place on kitchen counter. Wipe down gym equipment with antibacterial wipes. Inspect smoke detectors quarterly.",
++        "Avoid moving fragile items in living room. Deep clean oven and fridge monthly. Children’s playroom requires extra sanitizing of toys weekly.",
++        "Client pays by check. Leave invoice in mail slot. Change bed linens every Friday. Dust blinds weekly and use microfiber wand.",
++        "Always restock pantry items when low. Sweep outdoor patio once a month. Restock cleaning supplies from storage room as needed.",
++        "Emergency contact listed in file. Call if unable to complete visit. Clean microwave inside and out every visit. Check fridge for expired food and discard.",
++        "Avoid loud vacuums due to small dog. Client allergic to dust, so clean ceiling fans monthly. Use hypoallergenic detergent for linens.",
++        "Vacuum carpets in cross pattern for living room rug. Dust bookshelves weekly with microfiber only. Leave signed cleaning log after each visit.",
++        "Clean outdoor patio monthly. Wash balcony furniture in summer. Always park on street instead of driveway.",
++        "Client requests quarterly deep cleaning of vents. Remove cobwebs from garage monthly. Clean barbecue grill in summer.",
++        "Polish brass fixtures monthly with provided cleaner. Dust blinds every visit. Sweep driveway once a month.",
++        "Pet litter box to be changed weekly. Dispose waste in outdoor bins. Sweep garage monthly. Do not adjust house alarm system.",
++        "Client works night shifts. Avoid loud noise before 11 a.m. Collect recycling separately and restock towels in guest bathroom.",
++        "Shoes off policy with disposable covers available. Clean microwave weekly. Children’s bedrooms must be tidy with toys in labeled bins.",
++        "Clean under beds each visit. Use vinegar-based cleaner for bathrooms. Collect and place mail neatly on kitchen counter.",
++        "Client allergic to strong scents. Use baking soda for deodorizing. Sanitize doorknobs and light switches each visit.",
++        "Check windows for mold during rainy season. Sweep balcony weekly. Laundry to be folded neatly and stored in drawers.",
++        "Always use client-provided mop from laundry room. Use lemon oil on dining table monthly. Refill water pitcher in fridge.",
++        "Clean barbecue grill in summer months. Dust blinds carefully. Store fragile glass shades safely after cleaning light fixtures.",
++        "Client requests quarterly carpet shampoo. Always arrive on time and confirm entry/exit times in app. Restock pantry when low.",
++        "Client prefers eco-friendly supplies. Avoid bleach in bathrooms. Children’s playroom requires disinfecting toys weekly.",
++        "Polish silverware monthly. Restock guest towels. Client sensitive to noise, use cordless vacuum after 1 p.m. only.",
++        "Deep clean carpets every 6 months. Use hypoallergenic detergent for linens. Sweep outdoor patio monthly.",
++        "Client supplies paper towels, use only their stock. Vacuum sofa cushions every visit. Collect recycling weekly.",
++        "Shoes off policy. Restock cleaning supplies from storage. Clean behind appliances every 6 months.",
++        "Always lock front and back doors. Remove cobwebs monthly. Client pays via credit card on file.",
++        "Send invoice grouped by quarter. Clean light fixtures quarterly. Organize closets every 3 months.",
++        "Wipe down gym equipment weekly. Sweep garage monthly. Avoid moving fragile items in living room.",
++        "Client works from home. Avoid office 9–5. Dust blinds weekly. Restock bathroom supplies each visit.",
++        "Client prefers lavender air freshener. Sweep balcony weekly. Laundry folded KonMari style.",
++        "Trash bins must go out Thursday evening. Collect mail daily. Client allergic to citrus cleaners.",
++        "Check smoke detectors quarterly. Clean ceiling fans monthly. Vacuum sofa cushions and rotate monthly.",
++        "Sweep driveway monthly. Collect recycling separately. Restock guest bathroom towels every visit.",
++        "Client requests photos of home after cleaning when traveling. Store signed checklist in kitchen drawer."
++        ]
++    return random.choice(notes)
++
++def get_property_notes():
++
++    notes = [
++        "Small pets on premises. Requires key pickup at concierge. Alarm code provided separately.",
++        "Parking available in underground garage. Elevator access requires fob. Concierge must be notified before arrival.",
++        "Property has steep driveway. Please park on street. Gate code will be texted before arrival.",
++        "Security cameras in use throughout property. Alarm code provided. Client requests notification upon entry and exit.",
++        "Requires key collection from lockbox at side gate. Lockbox code changes monthly. Always relock after use.",
++        "Unit located on 12th floor. Use service elevator only. Concierge will provide visitor badge at desk.",
++        "Dogs on property, kept in backyard. Ensure gates are closed. Avoid using side gate — only use main entrance.",
++        "Requires garage remote for entry. Remote must be returned to storage room. Street parking not permitted.",
++        "Property has pool in backyard. Extra caution required when staff present. Clean pool deck once monthly.",
++        "Alarm system armed between visits. Code and instructions provided. Notify client immediately if alarm is triggered.",
++        "Requires shoe covers before entering property. Additional covers provided inside foyer. Hardwood floors sensitive to scratches.",
++        "Rural property with long dirt road. Use GPS coordinates provided. Cell service may be limited in area.",
++        "Key must be collected from property manager office two blocks away. Return same day after visit.",
++        "Requires guardhouse check-in. Provide company ID and sign logbook. Guards will escort to unit if needed.",
++        "Property has locked basement. Access permitted only with client approval. Basement not part of cleaning scope.",
++        "Elevator is out of service frequently. Be prepared to use stairs for access. Notify office if elevator is non-functional.",
++        "Garage contains hazardous chemicals. Do not enter or store supplies inside garage. Use outdoor storage shed if needed.",
++        "Gate entry requires phone call to intercom. Dial client’s extension for access. Do not share gate code.",
++        "Water shutoff valve located in basement. Client requests staff note any leaks or drips during cleaning.",
++        "Construction ongoing in neighboring property. Limited parking available. Enter via alleyway entrance only.",
++        "Property has heavy traffic around school zone. Allow extra travel time. Avoid arrival during school dismissal hours.",
++        "Client requests all deliveries and mail placed on kitchen counter. Packages often left at concierge desk.",
++        "Requires pickup of keys from cleaning supervisor each morning. Keys to be returned by end of day.",
++        "Property has solar panels on roof. Do not allow anyone access. Avoid spraying roof with water during outdoor cleaning.",
++        "Septic system on property. Only flush paper products. Notify client immediately if toilets back up.",
++        "Balcony doors must remain locked after cleaning. Report any issues with sliding doors or latches.",
++        "Unit part of gated condo complex. Visitor parking is limited to two hours. Ticketing enforced strictly.",
++        "Heating system located in attic. Avoid entering furnace room. Report if unusual noises are noticed.",
++        "Client requests plants watered weekly. Use filtered water only. Plants located in living room and balcony.",
++        "Alarm keypad near front door. Must disarm immediately after entry. Failure will trigger security company call.",
++        "Trash must be taken to community dumpster at far end of lot. Do not leave bags outside unit.",
++        "Property has smart locks. Access requires phone app. Ensure Wi-Fi is connected before entry attempt.",
++        "Building requires staff to sign waiver at management office. Keep copy of signed waiver on file.",
++        "Garage used for storage only. Do not move boxes. Pathways should remain clear for safety.",
++        "Property has historic wood floors. Use only microfiber mops. No water-based solutions permitted.",
++        "Client requests blinds remain fully closed after cleaning. Do not leave windows open under any circumstances.",
++        "Pool equipment in shed behind garage. Do not tamper. Client handles pool maintenance separately.",
++        "Requires double locking procedure when leaving. Confirm both deadbolt and knob lock engaged.",
++        "Unit located in mixed-use building. Noise must be kept to a minimum during business hours.",
++        "Property has multiple access gates. Use north gate only. South gate reserved for deliveries.",
++        "Mailbox shared with multiple tenants. Ensure client’s mail is separated and placed inside unit.",
++        "Balcony railing is loose. Avoid leaning or placing weight against railing. Report any safety hazards.",
++        "Building requires background check for all service providers. ID badge must be worn at all times.",
++        "Client stores valuables in master bedroom safe. Do not attempt to move safe or surrounding furniture.",
++        "Elevator requires service key. Concierge will provide temporary key at front desk. Return immediately after use.",
++        "Unit above commercial restaurant. Strong odors may linger. Ensure extra attention to air freshening.",
++        "Main gate closes automatically at 8 p.m. Ensure staff have exited before closing time.",
++        "Property has koi pond in backyard. Do not feed fish. Avoid spilling cleaning supplies near water.",
++        "Keypad entry may fail in rain. Backup keys stored in lockbox under porch. Code provided separately.",
++        "Property located in flood zone. Check for water intrusion in basement after storms.",
++        "Requires removal of shoes inside. Slippers provided. Carpets are antique and highly delicate.",
++        "Client requests garage to remain locked at all times. Entry permitted only with owner approval.",
++        "Visitor parking requires hang tag displayed in car. Tag located on kitchen counter.",
++        "Roof access prohibited. Report any signs of roof leaks or water damage.",
++        "Shared laundry facilities in basement. Do not use machines during cleaning.",
++        "Smart thermostat should not be adjusted. Client monitors remotely via app.",
++        "Balcony prone to pigeon droppings. Sweep weekly and report infestations.",
++        "Unit has water softener system. Check salt levels monthly and notify client.",
++        "Requires passcode for building lobby entry. Passcode changes every 90 days.",
++        "Client requests driveway gate remain closed at all times. Neighbors have complained of open gates.",
++        "House has multiple staircases. Use main staircase only. Secondary staircase reserved for family.",
++        "Elevator is oversized freight type. Staff may use only with concierge approval.",
++        "Community pool area requires wristband. Cleaning does not include pool deck unless authorized.",
++        "Key to property stored in office safe. Pickup required before first visit of day.",
++        "Unit has electric car charging station. Do not block charger with vehicle.",
++        "Building manager requires insurance certificate on file for service providers.",
++        "Property includes wine cellar in basement. Do not adjust temperature or move bottles.",
++        "Client requests garage door not be opened during service. Noise disturbs neighbors.",
++        "Garden tools stored in outdoor shed. Lock after use. Report if tools missing.",
++        "Balcony doors have faulty locks. Confirm secure before leaving property.",
++        "Fireplace is decorative only. Do not remove items from mantle or hearth.",
++        "Main entrance steps icy in winter. Use caution when entering property.",
++        "Community HOA prohibits use of loud equipment after 6 p.m. Be mindful of schedule.",
++        "Client keeps pets in separate locked room. Do not attempt entry. Room excluded from cleaning.",
++        "Water filter in kitchen sink requires replacement every 3 months. Notify client if past due.",
++        "Unit located near construction site. Dust levels higher than normal — extra vacuuming required.",
++        "Building requires QR code check-in via mobile app. Staff must scan code on entry and exit.",
++        "Client requests deliveries left in garage. Packages must not be left outside gate.",
++        "Outdoor lighting on timer system. Do not adjust switches. Report if bulbs are out.",
++        "Security guard will escort staff to property. Sign visitor logbook on entry and exit.",
++        "Home office contains sensitive documents. Do not touch papers. Dust surface only.",
++        "Balcony doors prone to drafts. Ensure they are sealed after cleaning.",
++        "Client requests thermostat remain at 70°F year-round. Confirm setting before leaving.",
++        "Neighborhood parking limited. Use public garage two blocks away when street spots unavailable.",
++        "Property requires entry through back alley. Do not use front driveway per HOA rules.",
++        "Unit equipped with motion sensors. Notify client if false alarms occur.",
++        "Client requests fridge water filter monitored. Replace if red light indicator shows.",
++        "House has multiple outdoor fountains. Clean bird droppings from edges monthly.",
++        "Building concierge requires phone call before staff arrival. Confirm via intercom on entry.",
++        "Garage contains luxury vehicles. Do not lean supplies on cars or touch interiors.",
++        "Unit includes private rooftop terrace. Sweep and clear debris once monthly.",
++        "Property requires double key system — one for gate, one for front door. Both must be returned.",
++        "Community requires visitor parking permits. Ensure permit visible at all times.",
++        "Client requests exterior doormats shaken out weekly. Replace if damaged.",
++        "Unit located at end of hallway. Noise travels easily. Keep voice levels low.",
++        "Home has septic alarm system. Report any flashing lights or alarms immediately.",
++        "Mailbox is locked. Use key stored on kitchen counter. Return key after use.",
++        "Client stores valuables in attic. Attic off-limits to staff. Do not enter.",
++        "Unit in senior living complex. Be respectful of quiet hours between 7 p.m. and 8 a.m.",
++        "Property landscaping done by third-party vendor. Do not water or move plants outdoors."
++    ]
++
++    return random.choice(notes)
++
++def get_job_notes():
++
++    notes = [
++        "Job scheduled for Mondays at 9 a.m. Requires eco-friendly supplies. Leave detailed checklist signed by staff.",
++        "Deep clean requested every second Friday. Focus on bathrooms and kitchen. Supervisor must approve before leaving.",
++        "Windows to be cleaned only on exterior. Client provides ladder. Safety gear required for second floor.",
++        "Job requires two cleaners minimum. Staff rotation not allowed without client approval. Log arrival times.",
++        "Use fragrance-free products due to allergies. Vacuum under all furniture. Report pet hair accumulation.",
++        "Monthly carpet shampoo included. Drying fans required after service. Notify client before starting.",
++        "Clean refrigerator interior once per month. Discard expired items only with client confirmation.",
++        "Job requires supervisor inspection. Pictures to be uploaded for quality control. Staff to clock out only after approval.",
++        "All garbage must be placed in community dumpster. Recycling must be separated and logged weekly.",
++        "Clean oven once monthly. Use only non-abrasive cleaner. Document before/after pictures for client.",
++        "Job involves sanitizing all doorknobs and switches. Extra attention to shared workspaces. Supplies restocked as needed.",
++        "Requires disinfection of gym equipment. Client requests all machines wiped down with alcohol-based solution.",
++        "Clean balcony tiles monthly. Use mop with mild detergent. Ensure sliding doors remain locked after service.",
++        "Dusting required on high ceiling fans. Extension poles provided by staff. Safety check before use.",
++        "Client requests washing machine cleaned every quarter. Run hot cycle with cleaning tablets provided.",
++        "Job includes interior window cleaning every visit. Do not remove window screens. Use microfiber only.",
++        "Garage must be swept monthly. Avoid moving heavy items. Photograph storage area after cleaning.",
++        "Job requires flexible hours due to client schedule. Confirm via text message night before each visit.",
++        "Client provides supplies stored in laundry room. Use only designated products. Reorder list updated weekly.",
++        "Kitchen requires deep cleaning every 2 weeks. Focus on grout and backsplash. Upload progress pictures.",
++        "Bathrooms must be restocked with toilet paper. Client keeps supplies in hallway closet. Note any shortages.",
++        "Clean office desks but avoid moving papers. Dust electronics with microfiber cloth only. No liquid sprays near devices.",
++        "Job requires security alarm reset after cleaning. Ensure alarm armed before leaving property.",
++        "Client requests pet bowls cleaned daily. Replace water bowls. Sweep around feeding area thoroughly.",
++        "Job includes cleaning patio furniture. Cover furniture after cleaning. Report damage if found.",
++        "Job requires sanitizing air vents monthly. Use vacuum attachment only. Do not remove covers.",
++        "Client requests all mirrors polished weekly. Use streak-free spray only. Avoid spraying directly on frames.",
++        "Restock kitchen with client-provided bottled water. Note any missing deliveries. Place cases in pantry.",
++        "Job includes dusting bookshelves. Do not rearrange items. Clean around decorative objects carefully.",
++        "Client requires sanitization of children’s playroom. Focus on toys and mats. Use non-toxic cleaner.",
++        "Job scheduled on alternating Saturdays. Provide staff of 3 cleaners. Minimum 4 hours per session.",
++        "Clean light fixtures monthly. Use ladder for chandelier. Gloves required to avoid fingerprints.",
++        "Clean under beds and behind sofas monthly. Move furniture carefully. Replace everything as found.",
++        "Client requests vacuuming upholstery. Use handheld vacuum with brush attachment. Focus on pet hair removal.",
++        "Job requires polishing stainless steel appliances. Use client-provided polish. Avoid abrasive sponges.",
++        "Client requests outdoor grill cleaned quarterly. Use degreaser provided. Document cleaning steps.",
++        "Bathrooms require mold inspection weekly. Notify office of any visible growth. Use bleach only if approved.",
++        "Job requires documenting supply usage. Record products used in log sheet. Submit weekly to office.",
++        "Client requests laundry folded and placed in baskets. Do not put clothes away in drawers.",
++        "Job requires staff to water balcony plants. Use filtered water. Note plant health monthly.",
++        "Clean office conference table weekly. Polish with wood conditioner. Do not use harsh chemicals.",
++        "Client requests beds made with hotel-style fold. Pillows fluffed and arranged. Send photos for review.",
++        "Job requires sweeping garage entrance. Leaves often accumulate. Report any oil spills or stains.",
++        "Client requests extra care for antique furniture. Use furniture polish only. Avoid moving heavy pieces.",
++        "Job requires wiping baseboards bi-weekly. Kneepads recommended for staff comfort. Document with checklist.",
++        "Client requests coffee machine cleaned weekly. Rinse all removable parts. Refill water reservoir.",
++        "Job requires sanitizing remote controls and phones. Use disinfectant wipes. Avoid leaving surfaces wet.",
++        "Client requests interior trash cans lined after each cleaning. Replace liners even if unused.",
++        "Job requires reporting maintenance issues. Document leaks, broken tiles, or damaged fixtures.",
++        "Client requests staff wear uniforms and name badges. Arrival must be logged with concierge.",
++        "Job requires end-of-service checklist. Supervisor signature mandatory. Email sent to client after approval."
++    ]
++    
++    return random.choice(notes)
++
++def get_visit_notes():
++
++    notes = [
++        "Arrived on time. Client requested additional focus on kitchen counters. Completed checklist and confirmed with client.",
++        "Entry via concierge desk. Concierge requested staff sign in and out. Visit took 2 hours.",
++        "Alarm code entered successfully. Reset before leaving. No issues reported.",
++        "Client not home. Gained entry via lockbox. Lockbox code changed — update required.",
++        "Client requested cleaning of balcony in addition to regular tasks. Added 30 minutes to visit.",
++        "Dog was present on property. Secured pet in backyard during cleaning. Returned to original area before leaving.",
++        "Client asked for additional dusting in home office. Avoided moving documents as instructed.",
++        "Found small water leak in bathroom sink. Reported to office for maintenance follow-up.",
++        "Arrived 15 minutes early. Waited until scheduled time per client request. Notified office of early arrival.",
++        "Client requested supervisor walk-through at end of visit. Supervisor confirmed checklist complete.",
++        "Key pickup from concierge went smoothly. Concierge required ID verification before key handover.",
++        "Trash bins were overflowing. Removed and replaced all liners. Took garbage to community dumpster.",
++        "Used client-provided supplies for bathroom cleaning. Refilled spray bottles after use.",
++        "Client requested window cleaning skipped this visit. Focused extra time on vacuuming carpets.",
++        "Alarm triggered on entry due to incorrect code. Client resolved remotely. No further issues.",
++        "Noted mold spots starting in shower grout. Informed office for documentation.",
++        "Client requested additional attention to children’s play area. Sanitized toys and mats thoroughly.",
++        "Client was present and walked through cleaning expectations. Adjusted visit plan accordingly.",
++        "Garage door remote malfunctioned. Entered via side gate. Reported issue to office.",
++        "Client asked for plants to be watered during visit. Completed using filtered water as requested.",
++        "Supervisor conducted random spot check during visit. Found work satisfactory.",
++        "Staff wore shoe covers as required. Hardwood floors polished. Client expressed satisfaction.",
++        "Completed deep clean in 3.5 hours. Added additional vacuuming of rugs due to pet hair.",
++        "Client requested assistance moving small furniture to clean underneath. Returned items afterward.",
++        "Supplies were low. Noted to office for replenishment before next visit.",
++        "Client requested bed linens changed. Used fresh set provided in laundry room.",
++        "Client asked to avoid using upstairs bathroom. Cleaned all other bathrooms as normal.",
++        "Inspection of refrigerator revealed expired food. Did not discard — awaiting client instructions.",
++        "Children were present in home. Staff worked quietly and avoided playroom until children left.",
++        "Client requested polishing of stainless steel appliances. Completed using provided polish.",
++        "Access delayed due to locked gate. Waited 20 minutes before gaining entry.",
++        "Client asked for extra attention on balcony glass doors. Completed streak-free cleaning.",
++        "No one available for checkout. Left note for client with summary of completed tasks.",
++        "Client requested laundry folded but not put away. Placed baskets neatly in laundry room.",
++        "Extra trash generated from client’s event. Took longer than scheduled. Reported overtime.",
++        "Neighbor complained about noise during visit. Staff reduced vacuum use temporarily.",
++        "Supplies closet reorganized for easier access. Client appreciated the adjustment.",
++        "Supervisor noted excellent completion. No corrective actions required.",
++        "Garage sweeping requested. Collected debris near entrance. Notified client of oil stain.",
++        "Client requested thermostat remain untouched. Verified temperature at end of visit.",
++        "Client requested return visit scheduled earlier in the week. Adjusted scheduling accordingly.",
++        "Staff encountered parking difficulty. Parked two blocks away. Delayed arrival by 10 minutes.",
++        "Client requested additional sanitization of doorknobs and light switches. Completed per request.",
++        "Vacuum malfunctioned. Used backup equipment. Reported maintenance need to office.",
++        "Client expressed concern about dust on blinds. Staff scheduled extra attention for next visit.",
++        "Client requested skipping one bathroom this week. Focus shifted to kitchen deep clean.",
++        "Staff found pet accident on rug. Cleaned using enzymatic spray. Notified client.",
++        "Client requested end-of-visit call. Staff phoned before leaving to confirm satisfaction.",
++        "Visit included cleaning of outdoor furniture. Covered with tarps afterward as requested.",
++        "Client provided positive feedback. Requested same staff for next scheduled visit."
++    ]
++    return random.choice(notes)
++
++def get_vendor_business_hours():
++    notes= [
++        "Standard janitorial services available Monday–Friday, 8 a.m.–6 p.m. Weekend work requires prior approval.",
++        "Emergency cleaning crews available 24/7 for water damage, fire cleanup, or biohazard incidents.",
++        "Overnight cleaning available for commercial offices. Crews typically operate between 10 p.m. and 6 a.m.",
++        "Vendor offers Saturday service for recurring residential clients. No Sunday operations unless emergency.",
++        "Holiday closures include Thanksgiving, Christmas, and New Year’s Day. Emergency crews remain on-call.",
++        "Peak demand occurs at end-of-month for move-out cleanings. Requests must be submitted two weeks ahead.",
++        "Vendor offers early morning service starting at 6 a.m. for retail stores before opening hours.",
++        "Summer hours extended: crews available until 9 p.m. for exterior and window cleaning jobs.",
++        "Winter weather delays possible. Snow or ice may shift job start times by up to 2 hours.",
++        "Special event cleanup available outside regular business hours. Requires booking at least 5 days in advance.",
++        "Recurring office cleaning contracts allow for flexible scheduling — mornings, evenings, or overnight.",
++        "Crews typically scheduled in 4-hour minimum blocks. Additional hours billed at overtime rate.",
++        "Holiday week schedules are adjusted. Vendor confirms time changes with clients at least 7 days prior.",
++        "Overnight crews require building access approval. Clients must ensure alarm codes and keys are active.",
++        "Emergency callouts during off-hours billed at double standard hourly rate.",
++        "Vendor adjusts start times seasonally to maximize daylight for exterior cleaning jobs."
++    ]
++    return random.choice(notes)
++
++def get_vendor_services():
++    notes= [
++        "Provides carpet and upholstery deep cleaning. Uses hot water extraction machines. Requires 24-hour drying period.",
++        "Specializes in window cleaning for high-rise apartments. Staff are certified for rope and harness safety.",
++        "Offers eco-friendly house cleaning. Uses only biodegradable, non-toxic products. Requires client-supplied vacuum.",
++        "Handles post-construction cleanup. Includes debris removal, dust control, and floor polishing.",
++        "Provides commercial office cleaning. Includes nightly trash removal, desk sanitization, and floor vacuuming.",
++        "Vendor specializes in floor strip and wax for vinyl and linoleum. Requires cleared areas before service.",
++        "Offers pressure washing for sidewalks, driveways, and patios. Service dependent on weather conditions.",
++        "Handles deep kitchen cleaning. Includes oven degreasing, exhaust hood scrubbing, and floor sanitization.",
++        "Provides move-in/move-out cleaning. Full unit detail including appliances, cabinets, and windows.",
++        "Specializes in tile and grout restoration. Uses steam cleaning and sealing. Requires 2 hours curing time.",
++        "Offers recurring residential maid service. Weekly or bi-weekly scheduling available. Supplies included.",
++        "Handles janitorial services for retail spaces. Includes restroom sanitization and window cleaning.",
++        "Provides sanitization and disinfection services. Uses electrostatic sprayers. Focus on high-touch areas.",
++        "Specializes in rug cleaning. Pickup and delivery included. Uses gentle, fabric-specific detergents.",
++        "Vendor offers ceiling and wall cleaning. Removes smoke stains, grease, and accumulated dust.",
++        "Handles outdoor furniture cleaning. Includes mold removal, cushion washing, and fabric protection.",
++        "Provides chimney and fireplace cleaning. Includes soot removal and inspection of flue.",
++        "Offers event cleanup services. Includes pre-event setup cleaning and post-event waste removal.",
++        "Specializes in green-certified office cleaning. Uses HEPA vacuums and chemical-free solutions.",
++        "Handles air duct cleaning. Uses industrial vacuum system and sanitizing fogger."
++    ]
++    return random.choice(notes)
++
++
++if __name__ == "__main__":
++    print("🚀 Starting AI Receptionist Data Generation...")
++    
++    # Create database and collections
++    print("\n📊 Setting up MongoDB database...")
++    client = create_database_and_collections(MONGO_URI)
++    
++    validate_client(client)
++    db = validate_database(client, DATABASE_NAME)
++    validate_collections(db, COLLECTIONS, test_write=False)
++
++    # NOTE: This exit stops execution before data generation; comment it out to proceed.
++    # sys.exit(1)
++
++    if client:
++        # Generate data
++        print("\n Generating fake data...")
++        vendors = generate_vendors()
++        clients, properties, jobs, visits, kb = generate_clients(vendors=vendors)
++
++        print("\n Generated Data Summary:")
++        print(f"   Clients: {len(clients)}")
++        print(f"   Properties: {len(properties)}")
++        print(f"   Jobs: {len(jobs)}")
++        print(f"   Visits: {len(visits)}")
++        print(f"   Vendors: {len(vendors)}")
++        print(f"   Knowledge Base: {len(kb)}")
++        
++        # Add embeddings to all collections (vendors, clients, properties, jobs, visits)
++        print("\n Generating embeddings...")
++        vendors_with_embeddings = add_embeddings_to_collection(vendors)
++        clients_with_embeddings = add_embeddings_to_collection(clients)
++        properties_with_embeddings = add_embeddings_to_collection(properties)
++        jobs_with_embeddings = add_embeddings_to_collection(jobs)
++        visits_with_embeddings = add_embeddings_to_collection(visits)
++
++        # Insert data into MongoDB — use the versions with embeddings
++        print("\nInserting data into MongoDB...")
++        insert_data_to_mongodb(client,
++            vendors_with_embeddings,
++            clients_with_embeddings,
++            properties_with_embeddings,
++            jobs_with_embeddings,
++            visits_with_embeddings,
++            kb)
++
++        # Close connection
++        client.close()
++        print("\n🎉 Process completed successfully!")
++    else:
++        print("❌ Could not establish database connection. Exiting...")
++
++
++================================================================================
++FILE: phone_utils.py
++PATH: ./src/utilities/phone_utils.py
++TYPE: Python
++SIZE: 1,335 bytes
++================================================================================
++
++# ==================== src/utilities/phone_utils.py ====================
++"""Phone number utilities."""
++
++import re
++
++
++class PhoneUtils:
++    """Utility class for phone number operations."""
++    
++    @staticmethod
++    def normalize_phone(phone: str) -> str:
++        """Normalize phone number to standard format."""
++        if not phone:
++            return ""
++        
++        # Remove all non-digit characters
++        digits = re.sub(r'\D', '', phone)
++        
++        # Handle US numbers
++        if len(digits) == 10:
++            return f"+1{digits}"
++        elif len(digits) == 11 and digits.startswith('1'):
++            return f"+{digits}"
++        
++        return f"+{digits}" if digits else ""
++    
++    @staticmethod
++    def format_phone_display(phone: str) -> str:
++        """Format phone number for display."""
++        normalized = PhoneUtils.normalize_phone(phone)
++        
++        if normalized.startswith('+1') and len(normalized) == 12:
++            # US number format: +1 (XXX) XXX-XXXX
++            digits = normalized[2:]
++            return f"+1 ({digits[:3]}) {digits[3:6]}-{digits[6:]}"
++        
++        return normalized
++    
++    @staticmethod
++    def is_valid_phone(phone: str) -> bool:
++        """Check if phone number is valid."""
++        normalized = PhoneUtils.normalize_phone(phone)
++        return len(normalized) >= 10
++
++
++================================================================================
++FILE: text_processing.py
++PATH: ./src/utilities/text_processing.py
++TYPE: Python
++SIZE: 1,497 bytes
++================================================================================
++
++# ==================== src/utilities/text_processing.py ====================
++"""Text processing utilities."""
++
++import re
++import html
++from typing import List
++
++
++class TextProcessor:
++    """Utility class for text processing operations."""
++    
++    @staticmethod
++    def sanitize_input(text: str) -> str:
++        """Sanitize user input text."""
++        if not text:
++            return ""
++        
++        # Remove potentially harmful characters
++        text = re.sub(r'[<>\"\'%;()&+]', '', text)
++        
++        # Limit length
++        text = text[:1000]
++        
++        return text.strip()
++    
++    @staticmethod
++    def escape_output(text: str) -> str:
++        """Escape text for safe output."""
++        return html.escape(text) if text else ""
++    
++    @staticmethod
++    def extract_keywords(text: str) -> List[str]:
++        """Extract keywords from text."""
++        if not text:
++            return []
++        
++        # Simple keyword extraction
++        words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
++        
++        # Remove common words
++        stop_words = {'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use'}
++        
++        keywords = [word for word in words if word not in stop_words]
++        
++        return list(set(keywords))[:10]  # Return unique keywords, max 10
++
++
++================================================================================
++FILE: __init__.py
++PATH: ./src/workflow/__init__.py
++TYPE: Python
++SIZE: 0 bytes
++================================================================================
++
++
++
++
++================================================================================
++FILE: ai_receptionist_workflow.py
++PATH: ./src/workflow/ai_receptionist_workflow.py
++TYPE: Python
++SIZE: 2,893 bytes
++================================================================================
++
++# ==================== src/workflow/ai_receptionist_workflow.py ====================
++"""LangGraph workflow for AI Receptionist analysis."""
++import logging
++# Get a logger instance for your module
++logger = logging.getLogger(__name__)
++# Set the logging level (e.g., INFO, DEBUG, WARNING, ERROR, CRITICAL)
++logger.setLevel(logging.INFO)
++
++from langgraph.graph import StateGraph, END
++
++from src.models.workflow_models import WorkflowState
++from src.services.database_service import DatabaseService
++from src.services.context_service import ContextService
++from src.nodes.identity_checker import IdentityChecker
++from src.nodes.context_builder import ContextBuilder
++from src.nodes.intent_analyzer import IntentAnalyzer
++from src.nodes.response_generator import ResponseGenerator
++
++
++class AIReceptionistWorkflow:
++    """LangGraph workflow for AI receptionist processing."""
++    
++    def __init__(self):
++        self.db_service = DatabaseService()
++        self.context_service = ContextService(self.db_service)
++        
++        # Initialize nodes
++        self.identity_checker = IdentityChecker(self.db_service)
++        self.context_builder = ContextBuilder(self.context_service)
++        self.intent_analyzer = IntentAnalyzer(self.db_service)
++        self.response_generator = ResponseGenerator()
++        
++        # Build workflow
++        self.workflow = self._build_workflow()
++    
++    def _build_workflow(self) -> StateGraph:
++        """Build the LangGraph workflow."""
++        workflow = StateGraph(WorkflowState)
++        
++        # Add nodes
++        workflow.add_node("identity_check", self.identity_checker)
++        #workflow.add_node("context_build", self.context_builder)
++        workflow.add_node("intent_analysis", self.intent_analyzer)
++        workflow.add_node("response_generation", self.response_generator)
++        
++        # Define edges
++        workflow.set_entry_point("identity_check")
++        workflow.add_edge("identity_check", "intent_analysis")
++        #workflow.add_edge("context_build", "intent_analysis")
++        workflow.add_edge("intent_analysis", "response_generation")
++        workflow.add_edge("response_generation", END)
++        
++        return workflow.compile()
++    
++    async def initialize(self):
++        """Initialize the workflow (connect to database)."""
++        await self.db_service.connect()
++    
++    async def cleanup(self):
++        """Cleanup resources."""
++        await self.db_service.disconnect()
++    
++    async def process_call(self, call_data: dict) -> WorkflowState:
++        logger.info("Processing the call.")
++        # Create initial state
++
++        initial_state = WorkflowState(
++            call_sid=call_data.get("call_sid"),
++            caller_phone=call_data.get("caller_phone"),
++            speech_text=call_data.get("speech_text")
++        )
++        
++        # Run workflow
++        result = await self.workflow.ainvoke(initial_state)
++        return result
++
++
++================================================================================
++FILE: workflow_runner.py
++PATH: ./src/workflow/workflow_runner.py
++TYPE: Python
++SIZE: 2,787 bytes
++================================================================================
++
++# ==================== src/workflow/workflow_runner.py ====================
++"""Workflow Runner for AI Receptionist. Command-line interface and programmatic runner for the workflow."""
++import logging
++# Get a logger instance for your module
++logger = logging.getLogger(__name__)
++# Set the logging level (e.g., INFO, DEBUG, WARNING, ERROR, CRITICAL)
++logger.setLevel(logging.INFO)
++
++import asyncio
++import json
++import sys
++from typing import Dict, Any
++
++from src.workflow.ai_receptionist_workflow import AIReceptionistWorkflow
++from src.models.workflow_models import WorkflowState
++
++
++class WorkflowRunner:
++    """Runner for the AI Receptionist workflow."""
++    
++    def __init__(self):
++        self.workflow = AIReceptionistWorkflow()
++    
++    async def run_workflow(self, call_data: Dict[str, Any]) -> Dict[str, Any]:
++        """Run the workflow with call data."""
++        try:
++            await self.workflow.initialize()
++            
++            result = await self.workflow.process_call(call_data)
++            logger.info(f"Workflow result intent: {result}")         
++            caller_type = result.get('caller_type', 'lead')
++            logger.info(f"Workflow result caller type: {caller_type}")
++
++            
++            return {
++                "success": True,
++                "caller_type": result.get('caller_type', 'lead'),
++                "intent": result.get('intent', 'generic'),
++                "response": result.get('response_text','Sorry I can\'t help you right now?'),
++                "next_action": result.get('next_action', 'None'),
++                "error": result.get('error_message','Unkown error')
++            }
++            
++        except Exception as e:
++            return {
++                "success": False,
++                "error": f"Workflow execution failed: {str(e)}"
++            }
++        
++        finally:
++            await self.workflow.cleanup()
++    
++    async def run_from_cli(self, args: list):
++        """Run workflow from command line arguments."""
++        if len(args) < 2:
++            print("Usage: python workflow_runner.py <caller_phone> [speech_text]")
++            return
++        
++        call_data = {
++            "caller_phone": args[1],
++            "speech_text": args[2] if len(args) > 2 else "Hello, I need help",
++            "call_sid": "test_call_123"
++        }
++        
++        print(f"Processing call from: {call_data['caller_phone']}")
++        print(f"Speech text: {call_data['speech_text']}")
++        
++        result = await self.run_workflow(call_data)
++        
++        print("\n--- Workflow Result ---")
++        print(json.dumps(result, indent=2, default=str))
++
++
++async def main():
++    """Main entry point for CLI."""
++    runner = WorkflowRunner()
++    await runner.run_from_cli(sys.argv)
++
++
++if __name__ == "__main__":
++    asyncio.run(main())
++
++
++================================================================================
++END OF CONSOLIDATION
++================================================================================
+diff --git a/simulated_conversations/20250930_071828_appointment_scheduling_13388582100.md b/simulated_conversations/20250930_071828_appointment_scheduling_13388582100.md
+new file mode 100644
+index 0000000..5e63e90
+--- /dev/null
++++ b/simulated_conversations/20250930_071828_appointment_scheduling_13388582100.md
+@@ -0,0 +1,17 @@
++# Conversation Log: Appointment Scheduling
++
++- **Caller Phone:** +13388582100
++- **Call SID:** CA0000001000
++- **Timestamp:** 2025-09-30 07:18:28
++
++## Conversation
++
++### Turn 1
++**Caller:** Hi, I want to schedule an appointment for next week.
++**AI Response:** None
++- Intent: None
++- Caller Type: None
++- Next Action: None
++
++---
++*Generated by Conversation Simulator*
+\ No newline at end of file
+diff --git a/src/nodes/intent_analyzer.py b/src/nodes/intent_analyzer.py
+index 2f3c703..de5c6b6 100644
+--- a/src/nodes/intent_analyzer.py
++++ b/src/nodes/intent_analyzer.py
+@@ -70,8 +70,8 @@ class IntentAnalyzer:
+             
+         except Exception as e:
+             print(f"⚠️ Gemini intent analysis failed: {e}")
+-            workflow_state.error_message = f"⚠️ Gemini intent analysis failed: {e}""
+-            workflow_state.intent = "Customer Service"`
++            workflow_state.error_message = f"⚠️ Gemini intent analysis failed: {e}"
++            workflow_state.intent = "Customer Service"
+             
+         return workflow_state
+ 
+diff --git a/src/nodes/response_generator.v0.py b/src/nodes/response_generator.v0.py
+new file mode 100644
+index 0000000..5c4578e
+--- /dev/null
++++ b/src/nodes/response_generator.v0.py
+@@ -0,0 +1,147 @@
++# ==================== src/nodes/response_generator.py ====================
++"""Response generator node using Google Gemini."""
++
++import html
++import os
++import google.generativeai as genai
++from src.models.workflow_models import WorkflowState, CallerType, Intent
++from config.settings import settings
++from dotenv import load_dotenv
++from src.services.database_service import DatabaseService
++
++load_dotenv()
++
++class ResponseGenerator:
++    """Node for generating responses with Google Gemini."""
++        
++    def __init__(self):
++        self.db_service = DatabaseService
++
++        # Configure Gemini
++        api_key = os.getenv("LLM__GOOGLE_API_KEY")
++        if not api_key:
++            raise ValueError("API_KEY environment variable is required")
++        
++        genai.configure(api_key=api_key)
++
++        self.model_name = os.getenv("LLM__MODEL_NAME")
++        if not self.model_name:
++            raise ValueError("MODEL environment variable is required")
++
++    def _escape_output(self, text: str) -> str:
++        """Escape text for safe display."""
++        return html.escape(text)
++
++    async def __call__(self, state: WorkflowState) -> WorkflowState:
++        """Generate response using Gemini based on context and intent."""
++        try:
++            agent_prompt = await self.db_service.find_agent_action_prompt('receptionist','intent_analysis',1)
++            state.agent_prompt = agent_prompt.prompt
++            
++            # Initialize turn count if not present
++            if not hasattr(state, 'turn_count'):
++                state.turn_count = 0
++            state.turn_count += 1
++            
++            response = await self._generate_with_gemini(state)
++
++            # If Gemini fails or empty string, fall back to templates
++            if not response:
++                response = self._get_fallback_response(state)
++
++            # Assign response back into workflow state
++            state.response_text = self._escape_output(response)
++            state.next_action = 'WIP'
++
++        except Exception as e:
++            state.error_message = f"Response generation failed: {str(e)}"
++            state.response_text = "I apologize, but I'm having trouble processing your request right now."
++            state.next_action = "continue_conversation"
++
++        state.processed = True
++        return state
++
++    async def _generate_with_gemini(self, state: WorkflowState) -> str:
++        """Ask Gemini to generate a contextual, intent-aware response."""
++        try:
++            # Build conversation history
++            conversation_history = ""
++            if hasattr(state, 'conversation_history') and state.conversation_history:
++                history_items = []
++                for i, turn in enumerate(state.conversation_history[-3:]):  # Last 3 turns
++                    history_items.append(f"Turn {i+1}: Caller said '{turn.get('user_input', '')}' -> AI responded '{turn.get('response', '')}'")
++                conversation_history = "\n".join(history_items)
++            
++            # Build prompt dynamically with context
++            prompt = f"""
++                You are an AI receptionist assistant having a phone conversation. 
++                {WorkflowState.agent_prompt}.
++
++                Current Context:
++                - Caller Type: {state.caller_type.value}
++                - Turn Number: {state.turn_count}
++                - Caller Speech: "{state.speech_text}"
++
++                Previous Conversation:
++                {conversation_history}
++
++                Response:
++            """
++            
++            # Configure model with specific parameters for consistency
++            model = genai.GenerativeModel(
++                self.model_name,
++                generation_config={
++                    "temperature": 0.7,
++                    "max_output_tokens": 150,
++                    "stop_sequences": ["\n\n", "."]
++                }
++            )
++            
++            response = model.generate_content(prompt)
++            
++            result = response.text.strip() if response and response.text else None
++            
++            # Update conversation history
++            if not hasattr(state, 'conversation_history'):
++                state.conversation_history = []
++            
++            state.conversation_history.append({
++                'user_input': state.speech_text,
++                'response': result,
++                'intent': result,
++                'turn': state.turn_count
++            })
++            
++            # Keep only last 5 turns to prevent context overflow
++            if len(state.conversation_history) > 5:
++                state.conversation_history = state.conversation_history[-5:]
++
++            return result
++
++        except Exception as e:
++            print(f"⚠️ Gemini failed: {e}")
++            return None
++
++    def _get_fallback_response(self, state: WorkflowState) -> str:
++        """Fallback template when Gemini fails."""
++        caller_templates = self.templates.get(state.caller_type, {})
++        return caller_templates.get(state.intent, "Hello! How can I help you today?")
++
++    def _determine_next_action(self, state: WorkflowState) -> str:
++        """Decide what the workflow should do next."""
++        if state.intent == Intent.SERVICE_REQUEST:
++            return "schedule_service"
++        elif state.intent == Intent.STATUS_CHECK:
++            return "provide_status"
++        elif state.intent == Intent.COMPLAINT:
++            return "escalate_to_human"
++        elif state.intent == Intent.PROFILE_UPDATE:
++            return "authenticate_profile_update"
++        elif state.intent == Intent.SCHEDULE_UPDATE:
++            # Check if we have time details to confirm appointment
++            if hasattr(state, 'time_details') and state.time_details:
++                return "confirm_appointment"
++            return "reschedule_job"
++        else:
++            return "continue_conversation"
+\ No newline at end of file
+```
+

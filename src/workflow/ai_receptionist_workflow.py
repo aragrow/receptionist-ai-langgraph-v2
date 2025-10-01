@@ -16,9 +16,7 @@ from src.services.context_service import ContextService
 # Import agents
 from src.agents.receptionist_l1 import ReceptionistL1
 from src.agents.l2_agent_factory import L2AgentFactory
-# L3 agents will be imported when implemented
-# from src.agents.l3_agent_factory import L3AgentFactory
-
+from src.agents.l3_agent_factory import L3AgentFactory
 logger = logging.getLogger(__name__)
 
 
@@ -45,8 +43,8 @@ class AIReceptionistWorkflow:
         # Initialize L2 factory
         self.l2_factory = L2AgentFactory(self.db_service)
         
-        # L3 factory will be initialized when L3 agents are implemented
-        # self.l3_factory = L3AgentFactory(self.db_service)
+        # Initialize L3 factory ✅ NEW - No longer placeholder!
+        self.l3_factory = L3AgentFactory(self.db_service)
         
         # Build workflow graph
         self.workflow = self._build_workflow()
@@ -134,20 +132,50 @@ class AIReceptionistWorkflow:
         logger.info("Executing L3 execution node")
         
         try:
-            # TODO: Implement when L3 agents are ready
-            # l3_agent = self.l3_factory.create_agent(state.selected_l3_agent)
-            # state = await l3_agent.process(state)
+            # Get refined intent from L2
+            if not state.intent_l2 or not state.intent_l2.name:
+                logger.error("No L2 intent found for L3 routing")
+                state.error_message = "Missing refined intent for action execution"
+                state.requires_human_escalation = True
+                state.escalation_reason = "missing_intent"
+                return state
             
-            # TEMPORARY: Mock L3 response
-            logger.warning("L3 agents not yet implemented - using mock response")
-            state.response_text = f"I understand you want to {state.intent_l2.name if state.intent_l2 else 'help'}. This feature is coming soon!"
+            intent_name = state.intent_l2.name
+            logger.info(f"Routing to L3 agent for intent: {intent_name}")
+            
+            # Get appropriate L3 agent based on refined intent
+            try:
+                l3_agent = self.l3_factory.create_agent(intent_name)
+                logger.info(f"Selected L3 agent: {l3_agent.agent_name} (domain: {l3_agent.domain})")
+            except Exception as e:
+                logger.error(f"Failed to create L3 agent for intent '{intent_name}': {e}")
+                state.error_message = f"Unable to process request: {str(e)}"
+                state.requires_human_escalation = True
+                state.escalation_reason = "agent_creation_failed"
+                return state
+            
+            # Execute L3 agent
+            state = await l3_agent.process(state)
+            
+            # Log L3 results
+            if state.action_success:
+                logger.info(
+                    f"L3 complete: action={state.action_result.get('action_name', 'unknown')} "
+                    f"success={state.action_success}"
+                )
+            else:
+                logger.warning(
+                    f"L3 action failed: {state.action_result.get('error_message', 'Unknown error')}"
+                )
+            
+            # Mark as processed
             state.processed = True
             state.current_tier = "L3"
             
             return state
         
         except Exception as e:
-            logger.error(f"L3 node error: {e}")
+            logger.error(f"L3 node error: {e}", exc_info=True)
             state.error_message = f"L3 execution failed: {str(e)}"
             state.requires_human_escalation = True
             state.escalation_reason = "technical_error"
@@ -396,12 +424,12 @@ class AIReceptionistWorkflow:
         logger.info(f"Processing call: {call_data.get('call_sid', 'unknown')}")
         
         # Create initial state
-        from datetime import datetime
+        from datetime import datetime, UTC
         initial_state = WorkflowState(
             call_sid=call_data.get("call_sid"),
             caller_phone=call_data.get("caller_phone"),
             speech_text=call_data.get("speech_text"),
-            processing_start_time=datetime.utcnow()
+            processing_start_time=datetime.now(UTC)
         )
         
         # Run workflow

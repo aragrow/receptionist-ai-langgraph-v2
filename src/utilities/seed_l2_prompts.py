@@ -6,7 +6,7 @@ Run this script to populate the agent_action_prompts collection with L2 system p
 
 import asyncio
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Add project root to path
@@ -342,8 +342,8 @@ L2_PROMPTS = [
         "active": True,
         "notes": "L2 refinement prompt for existing clients",
         "version": "1.0.0",
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
     },
     
     # Prospect L2 Prompts
@@ -355,8 +355,8 @@ L2_PROMPTS = [
         "active": True,
         "notes": "L2 refinement prompt for prospective clients",
         "version": "1.0.0",
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
     },
     
     # Partner L2 Prompts
@@ -368,8 +368,8 @@ L2_PROMPTS = [
         "active": True,
         "notes": "L2 refinement prompt for partners/vendors",
         "version": "1.0.0",
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
     },
     
     # General L2 Prompts
@@ -381,8 +381,8 @@ L2_PROMPTS = [
         "active": True,
         "notes": "L2 refinement prompt for general/unknown callers",
         "version": "1.0.0",
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
     },
     
     # L2 Clarification Prompt (shared)
@@ -394,8 +394,8 @@ L2_PROMPTS = [
         "active": True,
         "notes": "L2 clarification question generator (used by all L2 agents)",
         "version": "1.0.0",
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
     },
     
     # Concise variant (experimental)
@@ -409,8 +409,8 @@ Be thorough in extraction. Clients have profile data - use it.""",
         "active": False,
         "notes": "Ultra-concise L2 client prompt (experimental)",
         "version": "0.9.0",
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
     }
 ]
 
@@ -453,8 +453,8 @@ async def seed_l2_prompts():
             if existing:
                 # Update if different
                 if existing.get("prompt") != prompt_doc["prompt"]:
-                    prompt_doc["updated_at"] = datetime.utcnow()
-                    prompt_doc["created_at"] = existing.get("created_at", datetime.utcnow())
+                    prompt_doc["updated_at"] = datetime.now(timezone.utc)
+                    prompt_doc["created_at"] = existing.get("created_at", datetime.now(timezone.utc))
                     
                     await db_service.db.agent_action_prompts.update_one(
                         {"_id": existing["_id"]},

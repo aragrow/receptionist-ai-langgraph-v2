@@ -7,8 +7,7 @@ import logging
 from typing import Optional, List, Dict, Any
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from bson import ObjectId
-from datetime import datetime, timedelta
-
+from datetime import datetime, timezone, timedelta
 from config.settings import settings
 from src.models.database_models import (
     Client, Property, Job, Visit, Vendor, KnowledgeBase, AgentActionPrompt
@@ -118,17 +117,17 @@ class DatabaseService:
             if cache_key in self._prompt_cache:
                 # Check if cache is still valid
                 if cache_key in self._cache_timestamps:
-                    age = (datetime.utcnow() - self._cache_timestamps[cache_key]).total_seconds()
+                    age = (datetime.now(timezone.utc) - self._cache_timestamps[cache_key]).total_seconds()
                     if age < self._cache_ttl:
                         logger.debug(f"📦 Using cached prompt: {cache_key}")
                         return self._prompt_cache[cache_key]
             
             # Query database for active prompt
+            print(f"Getting agent prompt from db: {self.db.name}, {agent}, {action}, {level}")
             result = await self.db.agent_action_prompts.find_one({
                 "agent": agent,
                 "action": action,
                 "level": level,
-                "active": True
             })
             
             if result and "prompt" in result:
@@ -136,7 +135,7 @@ class DatabaseService:
                 
                 # Cache the result
                 self._prompt_cache[cache_key] = prompt
-                self._cache_timestamps[cache_key] = datetime.utcnow()
+                self._cache_timestamps[cache_key] = datetime.now(timezone.utc)
                 
                 logger.debug(f"✅ Retrieved prompt from DB: {agent}/{action}/level-{level}")
                 return prompt
@@ -183,6 +182,7 @@ class DatabaseService:
             Client object if found, None otherwise
         """
         try:
+            print(f"Getting clients by phone from db: {self.db}")
             result = await self.db.clients.find_one(
                 {"phone": phone},
                 {"embeddings": 0}  # Exclude embeddings for performance
@@ -210,6 +210,7 @@ class DatabaseService:
             Vendor object if found, None otherwise
         """
         try:
+            print(f"Getting vendor by phone from db: {self.db}")
             result = await self.db.vendors.find_one({"phone": phone})
             
             if result:
@@ -243,17 +244,18 @@ class DatabaseService:
             True if successful, False otherwise
         """
         try:
-            expires_at = datetime.utcnow() + timedelta(minutes=ttl_minutes)
+            expires_at = datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)
             
             session_doc = {
                 "session_id": session_id,
                 "state_data": state_data,
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
                 "expires_at": expires_at
             }
             
             # Upsert (update or insert)
+            print(f"Saving sessions to db: {self.db}")
             await self.db.sessions.update_one(
                 {"session_id": session_id},
                 {"$set": session_doc},
@@ -278,6 +280,7 @@ class DatabaseService:
             Session state data if found and not expired, None otherwise
         """
         try:
+            print(f"Getting sessions from db: {self.db}")
             result = await self.db.sessions.find_one({"session_id": session_id})
             
             if not result:
@@ -285,7 +288,7 @@ class DatabaseService:
                 return None
             
             # Check expiration
-            if result.get("expires_at") and result["expires_at"] < datetime.utcnow():
+            if result.get("expires_at") and result["expires_at"] < datetime.now(timezone.utc):
                 logger.info(f"⏰ Session expired: {session_id}")
                 await self.delete_session(session_id)
                 return None
@@ -308,6 +311,7 @@ class DatabaseService:
             True if deleted, False otherwise
         """
         try:
+            print(f"Delete sessions from db: {self.db}")
             result = await self.db.sessions.delete_one({"session_id": session_id})
             
             if result.deleted_count > 0:
@@ -328,8 +332,9 @@ class DatabaseService:
             Number of sessions deleted
         """
         try:
+            print(f"Cleaning up expired sessionsfrom db: {self.db}")
             result = await self.db.sessions.delete_many({
-                "expires_at": {"$lt": datetime.utcnow()}
+                "expires_at": {"$lt": datetime.now(timezone.utc)}
             })
             
             if result.deleted_count > 0:
@@ -373,10 +378,10 @@ class DatabaseService:
                 "to_tier": to_tier,
                 "reason": reason,
                 "confidence": confidence,
-                "timestamp": datetime.utcnow(),
+                "timestamp": datetime.now(timezone.utc),
                 "metadata": metadata or {}
             }
-            
+            print(f"Getting routing decisions from db: {self.db}")
             await self.db.routing_logs.insert_one(log_entry)
             logger.debug(f"📊 Routing logged: {from_tier} → {to_tier}")
             return True
@@ -399,6 +404,7 @@ class DatabaseService:
             List of routing log entries
         """
         try:
+            print(f"Getting routing jobs property from db: {self.db}")
             cursor = self.db.routing_logs.find(
                 {"session_id": session_id}
             ).sort("timestamp", 1)
@@ -427,6 +433,7 @@ class DatabaseService:
     
     async def get_property_jobs(self, property_id: ObjectId) -> List[Job]:
         """Get all jobs for a property."""
+        print(f"Getting jobs for property from db: {self.db}")
         cursor = self.db.jobs.find({"property_id": property_id})
         jobs = []
         async for doc in cursor:
@@ -435,6 +442,7 @@ class DatabaseService:
     
     async def get_job_visits(self, job_id: ObjectId) -> List[Visit]:
         """Get all visits for a job."""
+        print(f"Getting jobs visits for property from db: {self.db}")
         cursor = self.db.visits.find({"job_id": job_id})
         visits = []
         async for doc in cursor:
@@ -443,6 +451,7 @@ class DatabaseService:
     
     async def get_vendor_jobs(self, vendor_id: ObjectId) -> List[Job]:
         """Get all jobs for a vendor."""
+        print(f"Getting jobs for vendors from db: {self.db}")
         cursor = self.db.jobs.find({"vendor_id": vendor_id})
         jobs = []
         async for doc in cursor:
@@ -461,7 +470,7 @@ class DatabaseService:
             {"$match": {"entity_id": {"$in": entity_ids}}},
             {"$limit": limit}
         ]
-        
+        print(f"Search Knowledge base from db: {self.db}")
         cursor = self.db.knowledge_base.aggregate(pipeline)
         results = []
         async for doc in cursor:
