@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, ConfigDict
 from bson import ObjectId
+from enum import Enum
 
 
 # ============ Custom Types ============
@@ -436,3 +437,155 @@ __all__ = [
     "PyObjectId",
     "BaseDocument"
 ]
+
+class PromptVersion(BaseModel):
+    """Track different versions of prompts"""
+    version_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    agent_name: str
+    action_name: str
+    prompt_text: str
+    version_number: int
+    created_at: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
+    created_by: str  # user/system who created it
+    is_active: bool = False
+    performance_metrics: Dict[str, float] = Field(default_factory=dict)
+    notes: str = ""
+
+class PromptPerformance(BaseModel):
+    """Track performance metrics for prompt versions"""
+    metric_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    version_id: str
+    agent_name: str
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
+    
+    # Classification metrics
+    accuracy: Optional[float] = None
+    precision: Optional[float] = None
+    recall: Optional[float] = None
+    f1_score: Optional[float] = None
+    
+    # Confidence metrics
+    avg_confidence: Optional[float] = None
+    low_confidence_rate: Optional[float] = None  # % below threshold
+    
+    # Operational metrics
+    avg_response_time_ms: Optional[float] = None
+    token_usage: Optional[int] = None
+    cost_per_request: Optional[float] = None
+    
+    # User experience metrics
+    clarification_rate: Optional[float] = None
+    escalation_rate: Optional[float] = None
+    success_rate: Optional[float] = None
+    
+    sample_size: int = 0
+
+class MisclassifiedIntent(BaseModel):
+    """Track misclassified intents for improvement"""
+    misclassification_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    session_id: str
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
+    
+    user_message: str
+    predicted_intent: str
+    predicted_confidence: float
+    actual_intent: str  # determined by human review or correction
+    
+    agent_name: str  # L1, L2, or L3
+    prompt_version_id: str
+    
+    routing_path: List[str]  # path through tiers
+    context: Dict[str, Any] = Field(default_factory=dict)
+    
+    reviewed: bool = False
+    reviewer_notes: str = ""
+    corrective_action_taken: bool = False
+
+class FeedbackType(str, Enum):
+    """Types of feedback users can provide"""
+    THUMBS_UP = "thumbs_up"
+    THUMBS_DOWN = "thumbs_down"
+    RATING = "rating"  # 1-5 stars
+    TEXT_FEEDBACK = "text_feedback"
+    ESCALATION_FEEDBACK = "escalation_feedback"
+
+class FeedbackCategory(str, Enum):
+    """Categories for feedback classification"""
+    ACCURACY = "accuracy"
+    SPEED = "speed"
+    HELPFULNESS = "helpfulness"
+    UNDERSTANDING = "understanding"
+    RESOLUTION = "resolution"
+    OTHER = "other"
+
+class UserFeedback(BaseModel):
+    """User feedback on agent interactions"""
+    feedback_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    session_id: str
+    message_id: Optional[str] = None  # Specific message being rated
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
+    
+    feedback_type: FeedbackType
+    rating: Optional[int] = None  # 1-5 for rating type
+    feedback_text: Optional[str] = None
+    category: Optional[FeedbackCategory] = None
+    
+    # Context
+    agent_name: str  # Which agent generated the response
+    intent: Optional[str] = None
+    routing_path: List[str] = Field(default_factory=list)
+    
+    # User info
+    user_id: Optional[str] = None
+    caller_type: Optional[str] = None
+    
+    # Processing
+    reviewed: bool = False
+    reviewer_notes: str = ""
+    action_taken: Optional[str] = None
+    improvement_implemented: bool = False
+
+class EscalationFeedback(BaseModel):
+    """Feedback specifically for escalated cases"""
+    feedback_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    ticket_id: str
+    session_id: str
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
+    
+    # Escalation context
+    escalation_reason: str
+    resolved: bool = False
+    resolution_time_minutes: Optional[int] = None
+    
+    # User satisfaction
+    was_escalation_necessary: bool
+    user_satisfaction: int  # 1-5
+    feedback_text: Optional[str] = None
+    
+    # Analysis
+    could_have_been_automated: bool = False
+    suggested_improvement: Optional[str] = None
+    reviewed: bool = False
+
+class FeedbackAnalytics(BaseModel):
+    """Aggregated feedback analytics"""
+    analytics_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    period_start: datetime
+    period_end: datetime
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
+    
+    # Overall metrics
+    total_feedback_count: int = 0
+    positive_feedback_count: int = 0
+    negative_feedback_count: int = 0
+    avg_rating: Optional[float] = None
+    
+    # By agent
+    feedback_by_agent: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    
+    # By intent
+    feedback_by_intent: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    
+    # Common issues
+    top_issues: List[Dict[str, Any]] = Field(default_factory=list)
+    improvement_opportunities: List[str] = Field(default_factory=list)

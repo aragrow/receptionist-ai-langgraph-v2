@@ -1,0 +1,230 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # AI Receptionist Application
+  # ============================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-receptionist-app
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      # MongoDB
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DB_NAME=${MONGODB_DB_NAME:-ai_receptionist}
+      
+      # LLM
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - MODEL_NAME=${MODEL_NAME:-gemini-2.0-flash-exp}
+      
+      # Routing
+      - CONFIDENCE_THRESHOLD_HIGH=${CONFIDENCE_THRESHOLD_HIGH:-0.75}
+      - CONFIDENCE_THRESHOLD_MEDIUM=${CONFIDENCE_THRESHOLD_MEDIUM:-0.4}
+      - MAX_CLARIFICATIONS=${MAX_CLARIFICATIONS:-2}
+      
+      # Session
+      - SESSION_TTL_MINUTES=${SESSION_TTL_MINUTES:-30}
+      - MAX_CONVERSATION_HISTORY=${MAX_CONVERSATION_HISTORY:-10}
+      
+      # Server
+      - HOST=0.0.0.0
+      - PORT=8000
+      - WORKERS=${WORKERS:-4}
+      
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_JSON_FORMAT=true
+      
+      # Redis (if enabled)
+      - REDIS_ENABLED=${REDIS_ENABLED:-false}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./logs:/app/logs
+      - ./config:/app/config
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ai-receptionist-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+
+  # ============================================================================
+  # MongoDB Database
+  # ============================================================================
+  mongodb:
+    image: mongo:7.0
+    container_name: ai-receptionist-mongodb
+    restart: unless-stopped
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=${MONGODB_DB_NAME:-ai_receptionist}
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - ai-receptionist-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  # ============================================================================
+  # Redis Cache (Optional - enable for high traffic)
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: ai-receptionist-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - ai-receptionist-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+  # ============================================================================
+  # NGINX Reverse Proxy (Optional - for production)
+  # ============================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: ai-receptionist-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - app
+    networks:
+      - ai-receptionist-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    profiles:
+      - production
+
+  # ============================================================================
+  # Prometheus (Optional - for metrics)
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ai-receptionist-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    networks:
+      - ai-receptionist-network
+    profiles:
+      - monitoring
+
+  # ============================================================================
+  # Grafana (Optional - for visualization)
+  # ============================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ai-receptionist-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    networks:
+      - ai-receptionist-network
+    profiles:
+      - monitoring
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  ai-receptionist-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local

@@ -1,0 +1,1255 @@
+# Troubleshooting Guide
+
+Common issues and solutions for the AI Receptionist System.
+
+---
+
+## Table of Contents
+
+1. [Installation Issues](#installation-issues)
+2. [Database Connection Issues](#database-connection-issues)
+3. [API/LLM Issues](#apillm-issues)
+4. [Docker Issues](#docker-issues)
+5. [Performance Issues](#performance-issues)
+6. [Routing Issues](#routing-issues)
+7. [Session Management Issues](#session-management-issues)
+8. [Logging Issues](#logging-issues)
+9. [Production Issues](#production-issues)
+10. [Getting Help](#getting-help)
+
+---
+
+## Installation Issues
+
+### Issue: ModuleNotFoundError
+
+**Symptom**:
+```
+ModuleNotFoundError: No module named 'fastapi'
+```
+
+**Solution**:
+```bash
+# Ensure virtual environment is activated
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate     # Windows
+
+# Reinstall dependencies
+pip install -r requirements.txt
+```
+
+---
+
+### Issue: Python Version Mismatch
+
+**Symptom**:
+```
+ERROR: This package requires Python >=3.11
+```
+
+**Solution**:
+```bash
+# Check Python version
+python --version
+
+# Install Python 3.11 or higher
+# Ubuntu
+sudo apt install python3.11
+
+# Mac (with Homebrew)
+brew install python@3.11
+
+# Create venv with specific Python version
+python3.11 -m venv venv
+```
+
+---
+
+### Issue: Permission Denied on Scripts
+
+**Symptom**:
+```
+bash: ./scripts/deploy.sh: Permission denied
+```
+
+**Solution**:
+```bash
+# Make script executable
+chmod +x scripts/deploy.sh
+chmod +x scripts/*.sh
+
+# Or run with bash
+bash scripts/deploy.sh
+```
+
+---
+
+## Database Connection Issues
+
+### Issue: MongoDB Connection Refused
+
+**Symptom**:
+```
+pymongo.errors.ServerSelectionTimeoutError: localhost:27017: [Errno 111] Connection refused
+```
+
+**Solutions**:
+
+**Check if MongoDB is running**:
+```bash
+# Docker
+docker ps | grep mongodb
+
+# System service
+sudo systemctl status mongod
+
+# Start if not running
+docker-compose up -d mongodb
+# OR
+sudo systemctl start mongod
+```
+
+**Check connection string**:
+```bash
+# Verify .env file
+cat .env | grep MONGODB_URI
+
+# Test connection
+mongosh "your_connection_string"
+```
+
+---
+
+### Issue: Authentication Failed
+
+**Symptom**:
+```
+pymongo.errors.OperationFailure: Authentication failed
+```
+
+**Solution**:
+```bash
+# Verify credentials in .env
+MONGODB_URI=mongodb://username:password@host:port/database
+
+# Test credentials
+mongosh "mongodb://username:password@localhost:27017/admin"
+
+# Reset password if needed
+mongosh
+> use admin
+> db.changeUserPassword("username", "new_password")
+```
+
+---
+
+### Issue: Database Not Found
+
+**Symptom**:
+```
+Database 'ai_receptionist' does not exist
+```
+
+**Solution**:
+```bash
+# Run migrations to create database
+python src/utilities/migrate_routing_collections.py
+
+# Or create manually
+mongosh
+> use ai_receptionist
+> db.createCollection("sessions")
+```
+
+---
+
+## API/LLM Issues
+
+### Issue: Invalid API Key
+
+**Symptom**:
+```
+google.api_core.exceptions.PermissionDenied: API key not valid
+```
+
+**Solution**:
+```bash
+# Verify API key in .env
+cat .env | grep GOOGLE_API_KEY
+
+# Get new API key from Google AI Studio
+# https://makersuite.google.com/app/apikey
+
+# Update .env
+GOOGLE_API_KEY=your_new_api_key_here
+
+# Restart application
+docker-compose restart app
+```
+
+---
+
+### Issue: Rate Limit Exceeded
+
+**Symptom**:
+```
+google.api_core.exceptions.ResourceExhausted: Quota exceeded
+```
+
+**Solutions**:
+
+**Temporary**:
+```bash
+# Wait for quota to reset (usually 1 minute)
+# Reduce request frequency
+```
+
+**Long-term**:
+```env
+# Switch to paid tier or different model
+MODEL_NAME=gemini-1.5-flash  # Faster, cheaper
+
+# Implement request throttling
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_PER_IP=50
+```
+
+---
+
+### Issue: Timeout Errors
+
+**Symptom**:
+```
+TimeoutError: Request timed out after 30 seconds
+```
+
+**Solution**:
+```env
+# Increase timeout in .env
+TIMEOUT=120
+
+# Or in code (src/services/llm_service.py)
+timeout=120
+```
+
+---
+
+## Docker Issues
+
+### Issue: Docker Daemon Not Running
+
+**Symptom**:
+```
+Cannot connect to the Docker daemon
+```
+
+**Solution**:
+```bash
+# Start Docker
+# Linux
+sudo systemctl start docker
+
+# Mac/Windows
+# Start Docker Desktop application
+
+# Verify
+docker info
+```
+
+---
+
+### Issue: Port Already in Use
+
+**Symptom**:
+```
+Error: Bind for 0.0.0.0:8000 failed: port is already allocated
+```
+
+**Solution**:
+```bash
+# Find process using port
+lsof -i :8000  # Mac/Linux
+netstat -ano | findstr :8000  # Windows
+
+# Kill process
+kill -9 <PID>
+
+# Or change port in .env
+PORT=8001
+```
+
+---
+
+### Issue: Out of Disk Space
+
+**Symptom**:
+```
+ERROR: No space left on device
+```
+
+**Solution**:
+```bash
+# Check disk usage
+df -h
+
+# Clean Docker system
+docker system prune -a --volumes
+
+# Remove old images
+docker image prune -a
+
+# Remove unused volumes
+docker volume prune
+```
+
+---
+
+### Issue: Container Keeps Restarting
+
+**Symptom**:
+```
+docker ps shows container constantly restarting
+```
+
+**Solution**:
+```bash
+# Check logs
+docker-compose logs app
+
+# Common causes:
+# 1. Missing environment variables
+# 2. Database not ready
+# 3. Port conflict
+
+# Fix: Verify .env file
+cat .env
+
+# Fix: Wait for database
+docker-compose up -d mongodb
+sleep 10
+docker-compose up -d app
+```
+
+---
+
+## Performance Issues
+
+### Issue: Slow Response Times
+
+**Symptom**:
+Requests taking >5 seconds to complete
+
+**Diagnostics**:
+```bash
+# Check metrics
+curl http://localhost:8000/analytics/dashboard
+
+# Check logs for slow queries
+grep "processing_time_ms" logs/ai_receptionist.log | sort -t: -k4 -n | tail -20
+```
+
+**Solutions**:
+
+**1. Scale workers**:
+```env
+WORKERS=8  # Increase from 4
+```
+
+**2. Enable Redis caching**:
+```env
+REDIS_ENABLED=true
+PROMPT_CACHE_ENABLED=true
+```
+
+**3. Optimize database**:
+```bash
+# Add indexes
+python src/utilities/migrate_routing_collections.py
+
+# Check slow queries
+mongosh
+> use ai_receptionist
+> db.setProfilingLevel(2)
+> db.system.profile.find().sort({millis:-1}).limit(5)
+```
+
+**4. Use faster LLM model**:
+```env
+MODEL_NAME=gemini-2.0-flash-exp  # Fastest
+```
+
+---
+
+### Issue: High Memory Usage
+
+**Symptom**:
+Container using >4GB RAM
+
+**Solution**:
+```bash
+# Check memory usage
+docker stats
+
+# Reduce workers
+WORKERS=2
+
+# Limit conversation history
+MAX_CONVERSATION_HISTORY=5
+
+# Set Docker memory limit
+docker-compose.yml:
+  deploy:
+    resources:
+      limits:
+        memory: 2G
+```
+
+---
+
+### Issue: High CPU Usage
+
+**Symptom**:
+CPU constantly at 100%
+
+**Solution**:
+```bash
+# Profile application
+pip install py-spy
+py-spy top --pid <process_id>
+
+# Common causes:
+# 1. Too many concurrent requests
+# 2. Inefficient loops
+# 3. LLM processing
+
+# Fix: Enable rate limiting
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_PER_IP=50
+```
+
+---
+
+## Routing Issues
+
+### Issue: Low L1 Confidence
+
+**Symptom**:
+Most L1 classifications have confidence <0.75
+
+**Diagnostics**:
+```bash
+# Check L1 accuracy
+curl http://localhost:8000/analytics/l1/accuracy
+```
+
+**Solutions**:
+
+**1. Adjust threshold**:
+```env
+CONFIDENCE_THRESHOLD_HIGH=0.65  # Lower threshold
+```
+
+**2. Improve L1 prompt**:
+```bash
+# Edit prompt in database
+mongosh
+> use ai_receptionist
+> db.agent_action_prompts.updateOne(
+    {agent_name: "receptionist_l1"},
+    {$set: {system_prompt: "improved_prompt_here"}}
+  )
+```
+
+**3. Add more examples**:
+```python
+# In src/utilities/seed_l1_prompts.py
+"examples": [
+    {"input": "...", "output": "..."},
+    # Add 10+ examples per intent
+]
+```
+
+---
+
+### Issue: Too Many Clarifications
+
+**Symptom**:
+Users getting 2+ clarification questions per session
+
+**Diagnostics**:
+```bash
+# Check clarification rate
+curl http://localhost:8000/analytics/l2/refinement
+```
+
+**Solutions**:
+
+**1. Improve slot extraction**:
+```python
+# In L2 agents, add better entity extraction
+# Use regex patterns for common formats
+```
+
+**2. Reduce required slots**:
+```python
+# Make some slots optional
+required_slots = ["address"]  # Remove "contact_number"
+```
+
+**3. Better prompts**:
+```python
+# Ask for multiple slots at once
+"What's the address and preferred date?"
+```
+
+---
+
+### Issue: Wrong L3 Agent Selected
+
+**Symptom**:
+Booking intents routed to Support agent
+
+**Solution**:
+```python
+# Check routing configuration in config/settings.py
+INTENT_L3_ROUTING = {
+    "book_service": "sales_agent_l3",  # Verify mapping
+    "reschedule": "scheduling_agent_l3",
+    # ...
+}
+
+# Check L2 output
+# Add logging to see what intent_l2.name is being set
+```
+
+---
+
+## Session Management Issues
+
+### Issue: Sessions Expiring Too Fast
+
+**Symptom**:
+Users lose context after a few minutes
+
+**Solution**:
+```env
+# Increase session TTL
+SESSION_TTL_MINUTES=60  # From 30
+```
+
+---
+
+### Issue: Session Not Found
+
+**Symptom**:
+```
+SessionNotFoundError: Session 'sess_abc123' not found
+```
+
+**Solutions**:
+
+**1. Check if session expired**:
+```bash
+# Query database
+mongosh
+> use ai_receptionist
+> db.sessions.findOne({session_id: "sess_abc123"})
+```
+
+**2. Check TTL index**:
+```bash
+> db.sessions.getIndexes()
+# Look for index on expires_at
+```
+
+**3. Disable auto-cleanup temporarily**:
+```env
+AUTO_CLEANUP_ENABLED=false
+```
+
+---
+
+### Issue: Memory Leak in Sessions
+
+**Symptom**:
+Memory growing over time, not releasing
+
+**Solution**:
+```bash
+# Enable session cleanup
+AUTO_CLEANUP_ENABLED=true
+SESSION_CLEANUP_INTERVAL_MINUTES=5
+
+# Reduce retention
+SESSION_RETENTION_DAYS=30  # From 90
+
+# Restart application
+docker-compose restart app
+```
+
+---
+
+## Logging Issues
+
+### Issue: No Logs Generated
+
+**Symptom**:
+`logs/ai_receptionist.log` file is empty
+
+**Solution**:
+```bash
+# Check log directory permissions
+ls -la logs/
+
+# Create directory if missing
+mkdir -p logs
+
+# Check log configuration
+cat .env | grep LOG_
+
+# Verify logging service is initialized
+# Check main.py startup logs
+```
+
+---
+
+### Issue: Logs Too Large
+
+**Symptom**:
+Log file growing to several GB
+
+**Solution**:
+```env
+# Enable log rotation
+LOG_MAX_BYTES=10485760  # 10MB
+LOG_BACKUP_COUNT=5
+
+# Reduce log level
+LOG_LEVEL=WARNING  # From INFO
+
+# Reduce retention
+LOG_FILE_RETENTION_DAYS=7  # From 30
+```
+
+---
+
+### Issue: Cannot Parse JSON Logs
+
+**Symptom**:
+Logs contain mixed JSON and plain text
+
+**Solution**:
+```env
+# Force JSON format
+LOG_JSON_FORMAT=true
+
+# Restart application
+docker-compose restart app
+```
+
+---
+
+## Production Issues
+
+### Issue: 502 Bad Gateway (NGINX)
+
+**Symptom**:
+NGINX returns 502 error
+
+**Diagnostics**:
+```bash
+# Check NGINX logs
+docker-compose logs nginx
+
+# Check if app is running
+docker-compose ps app
+
+# Test app directly
+curl http://localhost:8000/health
+```
+
+**Solutions**:
+
+**1. App not started**:
+```bash
+docker-compose up -d app
+```
+
+**2. Wrong upstream**:
+```nginx
+# Check nginx.conf
+upstream app_servers {
+    server app:8000;  # Correct service name
+}
+```
+
+**3. Timeout**:
+```nginx
+# Increase timeout in nginx.conf
+proxy_connect_timeout 300;
+proxy_send_timeout 300;
+proxy_read_timeout 300;
+```
+
+---
+
+### Issue: SSL Certificate Errors
+
+**Symptom**:
+```
+SSL certificate problem: unable to get local issuer certificate
+```
+
+**Solutions**:
+
+**1. Renew certificate**:
+```bash
+sudo certbot renew
+sudo systemctl reload nginx
+```
+
+**2. Check certificate files**:
+```bash
+sudo ls -la /etc/letsencrypt/live/yourdomain.com/
+# Should contain: fullchain.pem, privkey.pem
+```
+
+**3. Fix permissions**:
+```bash
+sudo chmod 644 /etc/letsencrypt/live/yourdomain.com/fullchain.pem
+sudo chmod 600 /etc/letsencrypt/live/yourdomain.com/privkey.pem
+```
+
+---
+
+### Issue: High Escalation Rate
+
+**Symptom**:
+>20% of sessions escalating to humans
+
+**Diagnostics**:
+```bash
+# Check escalation stats
+curl http://localhost:8000/analytics/escalations
+
+# Common reasons:
+# - Low confidence
+# - Max clarifications reached
+# - Action failures
+```
+
+**Solutions**:
+
+**1. Analyze escalation patterns**:
+```bash
+mongosh
+> use ai_receptionist
+> db.tickets.aggregate([
+    {$group: {_id: "$reason", count: {$sum: 1}}},
+    {$sort: {count: -1}}
+  ])
+```
+
+**2. Fix common issues**:
+```python
+# If "low_confidence" is top reason:
+# - Improve prompts
+# - Add more training examples
+# - Lower confidence threshold
+
+# If "max_clarifications" is top reason:
+# - Improve slot extraction
+# - Make some slots optional
+# - Better clarification questions
+```
+
+**3. Increase max clarifications**:
+```env
+MAX_CLARIFICATIONS=3  # From 2
+```
+
+---
+
+### Issue: Database Locks
+
+**Symptom**:
+```
+WriteConflict: WriteConflict error
+```
+
+**Solution**:
+```bash
+# Check for long-running operations
+mongosh
+> use ai_receptionist
+> db.currentOp({"secs_running": {$gt: 10}})
+
+# Kill slow operations
+> db.killOp(<opid>)
+
+# Add indexes to speed up queries
+> db.sessions.createIndex({session_id: 1})
+> db.routing_logs.createIndex({timestamp: -1})
+```
+
+---
+
+### Issue: Memory Leaks
+
+**Symptom**:
+Application memory growing continuously
+
+**Diagnostics**:
+```bash
+# Monitor memory over time
+docker stats --format "{{.MemUsage}}" ai-receptionist-app
+
+# Profile memory usage
+pip install memory_profiler
+python -m memory_profiler main.py
+```
+
+**Solutions**:
+
+**1. Clear old sessions**:
+```env
+AUTO_CLEANUP_ENABLED=true
+SESSION_TTL_MINUTES=30
+```
+
+**2. Limit conversation history**:
+```env
+MAX_CONVERSATION_HISTORY=5
+```
+
+**3. Restart daily** (temporary fix):
+```bash
+# Add to crontab
+0 4 * * * docker-compose restart app
+```
+
+---
+
+## Debugging Tips
+
+### Enable Debug Mode
+
+```env
+# In .env
+DEBUG_MODE=true
+LOG_LEVEL=DEBUG
+LOG_REQUESTS=true
+```
+
+### View Detailed Logs
+
+```bash
+# Tail logs with grep
+tail -f logs/ai_receptionist.log | grep ERROR
+
+# Search for specific session
+grep "sess_abc123" logs/ai_receptionist.log
+
+# View only L1 classifications
+grep "l1_classification" logs/ai_receptionist.log | jq
+```
+
+### Interactive Debugging
+
+```python
+# Add breakpoint in code
+import pdb; pdb.set_trace()
+
+# Or use ipdb
+import ipdb; ipdb.set_trace()
+
+# Run with debugger
+python -m pdb main.py
+```
+
+### Test Individual Components
+
+```bash
+# Test L1 agent
+python -c "
+from src.agents.receptionist_l1 import ReceptionistL1
+agent = ReceptionistL1()
+result = agent.classify('I want to book a cleaning')
+print(result)
+"
+
+# Test database connection
+python -c "
+from src.services.database_service import DatabaseService
+import asyncio
+async def test():
+    db = DatabaseService()
+    await db.connect()
+    print('Connected!')
+asyncio.run(test())
+"
+
+# Test LLM connection
+python -c "
+import google.generativeai as genai
+import os
+genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
+model = genai.GenerativeModel('gemini-2.0-flash-exp')
+response = model.generate_content('Say hello')
+print(response.text)
+"
+```
+
+### Performance Profiling
+
+```bash
+# Install profiler
+pip install py-spy
+
+# Profile running application
+py-spy top --pid $(pgrep -f "uvicorn main:app")
+
+# Generate flame graph
+py-spy record -o profile.svg --pid $(pgrep -f "uvicorn main:app")
+```
+
+### Database Debugging
+
+```bash
+# Check database size
+mongosh
+> use ai_receptionist
+> db.stats()
+
+# Find slow queries
+> db.setProfilingLevel(2)
+> db.system.profile.find().sort({millis:-1}).limit(10)
+
+# Check index usage
+> db.sessions.aggregate([{$indexStats: {}}])
+
+# Find duplicate data
+> db.sessions.aggregate([
+    {$group: {_id: "$session_id", count: {$sum: 1}}},
+    {$match: {count: {$gt: 1}}}
+  ])
+```
+
+---
+
+## Common Error Messages
+
+### Error: "ValidationError: 1 validation error"
+
+**Cause**: Invalid request data format
+
+**Solution**:
+```python
+# Check request format matches CallRequest model
+{
+    "caller_phone": "+14155551234",  # Must be E.164 format
+    "speech_text": "string",         # Required
+    "call_sid": "string",            # Required
+    "session_id": "string"           # Optional
+}
+```
+
+---
+
+### Error: "ConnectionResetError: [Errno 104] Connection reset by peer"
+
+**Cause**: Network connection interrupted
+
+**Solution**:
+```env
+# Increase timeouts
+TIMEOUT=120
+
+# Add retry logic
+# Check network stability
+# Verify firewall rules
+```
+
+---
+
+### Error: "KeyError: 'GOOGLE_API_KEY'"
+
+**Cause**: Environment variable not set
+
+**Solution**:
+```bash
+# Check .env file exists
+ls -la .env
+
+# Source .env file
+export $(cat .env | xargs)
+
+# Or restart with docker-compose
+docker-compose down
+docker-compose up -d
+```
+
+---
+
+### Error: "JSONDecodeError: Expecting value"
+
+**Cause**: Invalid JSON response from LLM
+
+**Solution**:
+```python
+# Add error handling in agent code
+try:
+    result = json.loads(llm_response)
+except json.JSONDecodeError:
+    # Fallback logic
+    result = {"error": "Invalid JSON"}
+```
+
+---
+
+### Error: "RuntimeError: Session closed"
+
+**Cause**: Database connection closed
+
+**Solution**:
+```python
+# Add connection pooling
+# Check MONGODB_MAX_POOL_SIZE
+# Implement reconnection logic
+
+# In database_service.py
+async def ensure_connected(self):
+    if not self.client:
+        await self.connect()
+```
+
+---
+
+## Prevention Best Practices
+
+### 1. Health Monitoring
+
+```bash
+# Set up monitoring script
+#!/bin/bash
+while true; do
+    if ! curl -f http://localhost:8000/health; then
+        echo "$(date): Health check failed" >> health.log
+        # Send alert
+        curl -X POST "https://hooks.slack.com/..." \
+          -d '{"text": "AI Receptionist health check failed"}'
+    fi
+    sleep 60
+done
+```
+
+### 2. Regular Backups
+
+```bash
+# Automated daily backups
+0 2 * * * /path/to/scripts/deploy.sh production --backup
+```
+
+### 3. Log Rotation
+
+```bash
+# Configure logrotate
+sudo nano /etc/logrotate.d/ai-receptionist
+
+/path/to/ai-receptionist/logs/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    notifempty
+    missingok
+    create 0640 appuser appuser
+}
+```
+
+### 4. Resource Limits
+
+```yaml
+# In docker-compose.yml
+deploy:
+  resources:
+    limits:
+      cpus: '2.0'
+      memory: 4G
+    reservations:
+      cpus: '1.0'
+      memory: 2G
+```
+
+### 5. Error Alerting
+
+```env
+# Configure Sentry
+SENTRY_DSN=your_sentry_dsn
+SENTRY_ENVIRONMENT=production
+
+# Email alerts
+EMAIL_ALERTS_ENABLED=true
+ALERT_EMAIL_RECIPIENTS=ops@yourdomain.com
+ERROR_ALERT_THRESHOLD=10
+```
+
+---
+
+## Getting Help
+
+### Before Asking for Help
+
+1. **Check logs**:
+   ```bash
+   docker-compose logs app | tail -100
+   ```
+
+2. **Check this guide**: Search for your error message
+
+3. **Check GitHub Issues**: Look for similar problems
+
+4. **Gather information**:
+   - Exact error message
+   - Steps to reproduce
+   - Environment details (OS, Docker version, etc.)
+   - Relevant logs
+   - Configuration files (.env, docker-compose.yml)
+
+### Where to Get Help
+
+1. **Documentation**:
+   - [README.md](README.md)
+   - [ARCHITECTURE.md](docs/ARCHITECTURE.md)
+   - [DEPLOYMENT.md](docs/DEPLOYMENT.md)
+
+2. **GitHub Issues**:
+   - Search existing issues
+   - Create new issue with template
+
+3. **Community**:
+   - GitHub Discussions
+   - Discord/Slack channel (if available)
+
+4. **Support Channels**:
+   - Email: support@yourdomain.com
+   - Commercial support (if available)
+
+### Creating a Good Bug Report
+
+```markdown
+**Environment**:
+- OS: Ubuntu 22.04
+- Docker: 24.0.5
+- Docker Compose: 2.20.2
+- Python: 3.11.5
+
+**Issue Description**:
+Clear description of the problem
+
+**Steps to Reproduce**:
+1. Start application with `docker-compose up -d`
+2. Send request to `/call` endpoint
+3. Error occurs
+
+**Expected Behavior**:
+What should happen
+
+**Actual Behavior**:
+What actually happens
+
+**Error Message**:
+```
+Paste complete error message here
+```
+
+**Logs**:
+```
+Paste relevant logs here
+```
+
+**Configuration**:
+```
+Relevant .env settings (redact sensitive data)
+```
+
+**Attempted Solutions**:
+- Tried X, didn't work
+- Checked Y, looks correct
+```
+
+---
+
+## Emergency Procedures
+
+### Complete System Failure
+
+```bash
+# 1. Stop all services
+docker-compose down
+
+# 2. Check system resources
+df -h  # Disk space
+free -h  # Memory
+top  # CPU usage
+
+# 3. Clean Docker
+docker system prune -a --volumes
+
+# 4. Restore from backup
+./scripts/deploy.sh production --rollback
+
+# 5. Start with fresh deployment
+./scripts/deploy.sh production --build --migrate
+```
+
+### Database Corruption
+
+```bash
+# 1. Stop application
+docker-compose stop app
+
+# 2. Export data
+docker-compose exec mongodb mongodump \
+  --db=ai_receptionist \
+  --out=/tmp/backup
+
+# 3. Repair database
+docker-compose exec mongodb mongosh
+> use ai_receptionist
+> db.repairDatabase()
+
+# 4. If repair fails, restore from backup
+docker-compose exec mongodb mongorestore \
+  --db=ai_receptionist \
+  /path/to/backup/ai_receptionist
+
+# 5. Restart
+docker-compose up -d
+```
+
+### Security Incident
+
+```bash
+# 1. Immediately revoke compromised API keys
+# Update GOOGLE_API_KEY in .env
+
+# 2. Rotate all secrets
+# Generate new API_KEY, database passwords
+
+# 3. Check logs for suspicious activity
+grep "401\|403\|500" logs/ai_receptionist.log
+
+# 4. Review access logs
+docker-compose logs nginx | grep -E "POST|DELETE"
+
+# 5. Update and redeploy
+./scripts/deploy.sh production --build --backup
+```
+
+---
+
+**Last Updated**: October 2025  
+**Version**: 2.0
+
+For additional support, please contact: support@yourdomain.com
