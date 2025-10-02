@@ -2,7 +2,7 @@
 
 """
 Database models for MongoDB collections.
-Updated with Session Management models for Phase 7.
+Updated with Session Management models for Phase 7 and Feedback models for Phase 12.
 """
 
 from datetime import datetime, timezone
@@ -10,6 +10,7 @@ from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, ConfigDict
 from bson import ObjectId
 from enum import Enum
+import uuid
 
 
 # ============ Custom Types ============
@@ -414,49 +415,47 @@ class Operator(BaseDocument):
     )
 
 
-# ============ Export All Models ============
+# ============ Phase 12: Feedback & Optimization Models ============
 
-__all__ = [
-    # Existing models
-    "Client",
-    "Vendor",
-    "Property",
-    "Job",
-    "Visit",
-    "KnowledgeBase",
-    
-    # Session management models
-    "SessionState",
-    "RoutingLog",
-    "EscalationTicket",
-    "ConversationLog",
-    "AgentActionPrompt",
-    "Operator",
-    
-    # Utility
-    "PyObjectId",
-    "BaseDocument"
-]
+class FeedbackType(str, Enum):
+    """Types of feedback users can provide"""
+    THUMBS_UP = "thumbs_up"
+    THUMBS_DOWN = "thumbs_down"
+    RATING = "rating"  # 1-5 stars
+    TEXT_FEEDBACK = "text_feedback"
+    ESCALATION_FEEDBACK = "escalation_feedback"
 
-class PromptVersion(BaseModel):
-    """Track different versions of prompts"""
+
+class FeedbackCategory(str, Enum):
+    """Categories for feedback classification"""
+    ACCURACY = "accuracy"
+    SPEED = "speed"
+    HELPFULNESS = "helpfulness"
+    UNDERSTANDING = "understanding"
+    RESOLUTION = "resolution"
+    OTHER = "other"
+
+
+class PromptVersion(BaseDocument):
+    """Track different versions of prompts for A/B testing"""
     version_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     agent_name: str
     action_name: str
     prompt_text: str
     version_number: int
-    created_at: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str  # user/system who created it
     is_active: bool = False
     performance_metrics: Dict[str, float] = Field(default_factory=dict)
     notes: str = ""
 
-class PromptPerformance(BaseModel):
+
+class PromptPerformance(BaseDocument):
     """Track performance metrics for prompt versions"""
     metric_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     version_id: str
     agent_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     
     # Classification metrics
     accuracy: Optional[float] = None
@@ -480,11 +479,12 @@ class PromptPerformance(BaseModel):
     
     sample_size: int = 0
 
-class MisclassifiedIntent(BaseModel):
+
+class MisclassifiedIntent(BaseDocument):
     """Track misclassified intents for improvement"""
     misclassification_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     session_id: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     
     user_message: str
     predicted_intent: str
@@ -501,34 +501,18 @@ class MisclassifiedIntent(BaseModel):
     reviewer_notes: str = ""
     corrective_action_taken: bool = False
 
-class FeedbackType(str, Enum):
-    """Types of feedback users can provide"""
-    THUMBS_UP = "thumbs_up"
-    THUMBS_DOWN = "thumbs_down"
-    RATING = "rating"  # 1-5 stars
-    TEXT_FEEDBACK = "text_feedback"
-    ESCALATION_FEEDBACK = "escalation_feedback"
 
-class FeedbackCategory(str, Enum):
-    """Categories for feedback classification"""
-    ACCURACY = "accuracy"
-    SPEED = "speed"
-    HELPFULNESS = "helpfulness"
-    UNDERSTANDING = "understanding"
-    RESOLUTION = "resolution"
-    OTHER = "other"
-
-class UserFeedback(BaseModel):
+class UserFeedback(BaseDocument):
     """User feedback on agent interactions"""
     feedback_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     session_id: str
     message_id: Optional[str] = None  # Specific message being rated
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     
-    feedback_type: FeedbackType
+    feedback_type: str  # Store as string for MongoDB compatibility
     rating: Optional[int] = None  # 1-5 for rating type
     feedback_text: Optional[str] = None
-    category: Optional[FeedbackCategory] = None
+    category: Optional[str] = None  # Store as string
     
     # Context
     agent_name: str  # Which agent generated the response
@@ -545,12 +529,13 @@ class UserFeedback(BaseModel):
     action_taken: Optional[str] = None
     improvement_implemented: bool = False
 
-class EscalationFeedback(BaseModel):
+
+class EscalationFeedback(BaseDocument):
     """Feedback specifically for escalated cases"""
     feedback_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     ticket_id: str
     session_id: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     
     # Escalation context
     escalation_reason: str
@@ -567,12 +552,13 @@ class EscalationFeedback(BaseModel):
     suggested_improvement: Optional[str] = None
     reviewed: bool = False
 
-class FeedbackAnalytics(BaseModel):
+
+class FeedbackAnalytics(BaseDocument):
     """Aggregated feedback analytics"""
     analytics_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     period_start: datetime
     period_end: datetime
-    generated_at: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC))
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     
     # Overall metrics
     total_feedback_count: int = 0
@@ -589,3 +575,38 @@ class FeedbackAnalytics(BaseModel):
     # Common issues
     top_issues: List[Dict[str, Any]] = Field(default_factory=list)
     improvement_opportunities: List[str] = Field(default_factory=list)
+
+
+# ============ Export All Models ============
+
+__all__ = [
+    # Existing models
+    "Client",
+    "Vendor",
+    "Property",
+    "Job",
+    "Visit",
+    "KnowledgeBase",
+    
+    # Session management models
+    "SessionState",
+    "RoutingLog",
+    "EscalationTicket",
+    "ConversationLog",
+    "AgentActionPrompt",
+    "Operator",
+    
+    # Phase 12: Feedback & Optimization models
+    "FeedbackType",
+    "FeedbackCategory",
+    "PromptVersion",
+    "PromptPerformance",
+    "MisclassifiedIntent",
+    "UserFeedback",
+    "EscalationFeedback",
+    "FeedbackAnalytics",
+    
+    # Utility
+    "PyObjectId",
+    "BaseDocument"
+]

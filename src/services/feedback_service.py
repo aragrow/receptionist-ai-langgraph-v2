@@ -1,8 +1,16 @@
 # ==================== src/services/feedback_service.py ====================
 
+"""
+Feedback Service for Phase 12.3: User Feedback Loop
+
+Collects and analyzes user feedback to identify improvement opportunities.
+"""
+
+import uuid
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict, Counter
+
 from src.models.database_models import (
     UserFeedback, EscalationFeedback, FeedbackAnalytics,
     FeedbackType, FeedbackCategory
@@ -11,6 +19,7 @@ from src.services.database_service import DatabaseService
 from src.utilities.logger import get_logger
 
 logger = get_logger(__name__)
+
 
 class FeedbackService:
     """Service for collecting and analyzing user feedback"""
@@ -32,15 +41,32 @@ class FeedbackService:
         user_id: Optional[str] = None,
         caller_type: Optional[str] = None
     ) -> UserFeedback:
-        """Collect feedback from a user"""
+        """
+        Collect feedback from a user.
         
+        Args:
+            session_id: Session being rated
+            feedback_type: Type of feedback (thumbs_up/down, rating, etc.)
+            agent_name: Agent that generated the response
+            rating: Optional 1-5 rating
+            feedback_text: Optional text feedback
+            category: Optional feedback category
+            message_id: Optional specific message ID
+            intent: Optional intent being rated
+            routing_path: Optional routing path
+            user_id: Optional user identifier
+            caller_type: Optional caller type
+        
+        Returns:
+            UserFeedback object
+        """
         feedback = UserFeedback(
             session_id=session_id,
             message_id=message_id,
-            feedback_type=feedback_type,
+            feedback_type=feedback_type.value if isinstance(feedback_type, FeedbackType) else feedback_type,
             rating=rating,
             feedback_text=feedback_text,
-            category=category,
+            category=category.value if isinstance(category, FeedbackCategory) else category,
             agent_name=agent_name,
             intent=intent,
             routing_path=routing_path or [],
@@ -48,10 +74,10 @@ class FeedbackService:
             caller_type=caller_type
         )
         
-        await self.db.insert_one("user_feedback", feedback.model_dump())
+        await self.db.insert_one("user_feedback", feedback.model_dump(exclude={"id"}))
         
         logger.info(
-            f"Collected {feedback_type} feedback for session {session_id} "
+            f"📝 Collected {feedback_type} feedback for session {session_id} "
             f"(agent: {agent_name}, rating: {rating})"
         )
         
@@ -74,8 +100,24 @@ class FeedbackService:
         could_have_been_automated: bool = False,
         suggested_improvement: Optional[str] = None
     ) -> EscalationFeedback:
-        """Collect feedback on escalated cases"""
+        """
+        Collect feedback on escalated cases.
         
+        Args:
+            ticket_id: Ticket ID
+            session_id: Session ID
+            escalation_reason: Reason for escalation
+            was_escalation_necessary: Whether escalation was needed
+            user_satisfaction: Satisfaction rating 1-5
+            resolved: Whether issue was resolved
+            resolution_time_minutes: Time to resolution
+            feedback_text: Additional feedback
+            could_have_been_automated: Whether automation was possible
+            suggested_improvement: Suggested improvement
+        
+        Returns:
+            EscalationFeedback object
+        """
         feedback = EscalationFeedback(
             ticket_id=ticket_id,
             session_id=session_id,
@@ -89,10 +131,10 @@ class FeedbackService:
             suggested_improvement=suggested_improvement
         )
         
-        await self.db.insert_one("escalation_feedback", feedback.model_dump())
+        await self.db.insert_one("escalation_feedback", feedback.model_dump(exclude={"id"}))
         
         logger.info(
-            f"Collected escalation feedback for ticket {ticket_id} "
+            f"📝 Collected escalation feedback for ticket {ticket_id} "
             f"(necessary: {was_escalation_necessary}, satisfaction: {user_satisfaction})"
         )
         
@@ -109,149 +151,23 @@ class FeedbackService:
         similar_feedback = await self.db.find_many(
             "user_feedback",
             {
-                "agent_name": feedback.agent_name,
-                "intent": feedback.intent,
-                "feedback_type": {"$in": [FeedbackType.THUMBS_DOWN, FeedbackType.RATING]},
-                "timestamp": {"$gte": datetime.now(datetime.UTC) - timedelta(days=7)}
-            }
-        )
-        
-        if len(similar_feedback) >= 5:  # Threshold for pattern detection
-            logger.warning(
-                f"Pattern detected: Multiple negative feedback for "
-                f"{feedback.agent_name}/{feedback.intent} "
-                f"({len(similar_feedback)} occurrences in last 7 days)"
-            )
-            
-            # Create improvement opportunity
-            await self._create_improvement_opportunity(
-                agent_name=feedback.agent_name,
-                intent=feedback.intent,
-                issue_description=f"High negative feedback rate: {len(similar_feedback)} occurrences",
-                sample_feedback=[fb["feedback_text"] for fb in similar_feedback if fb.get("feedback_text")]
-            )
-    
-    async def _flag_unnecessary_escalation(self, feedback: EscalationFeedback):
-        """Flag unnecessary escalations for training data improvement"""
-        
-        logger.warning(
-            f"Unnecessary escalation flagged: ticket {feedback.ticket_id} "
-            f"(reason: {feedback.escalation_reason})"
-        )
-        
-        # Retrieve the full session to understand what could have been done differently
-        session = await self.db.find_one("sessions", {"session_id": feedback.session_id})
-        
-        if session and feedback.could_have_been_automated:
-            await self._create_improvement_opportunity(
-                agent_name="escalation_handler",
-                intent=feedback.escalation_reason,
-                issue_description="Could have been automated",
-                sample_feedback=[feedback.feedback_text] if feedback.feedback_text else [],
-                session_context=session
-            )
-    
-    async def _create_improvement_opportunity(
-        self,
-        agent_name: str,
-        intent: str,
-        issue_description: str,
-        sample_feedback: List[str],
-        session_context: Optional[Dict[str, Any]] = None
-    ):
-        """Create an improvement opportunity for review"""
-        
-        opportunity = {
-            "opportunity_id": str(uuid.uuid4()),
-            "created_at": datetime.now(datetime.UTC),
-            "agent_name": agent_name,
-            "intent": intent,
-            "issue_description": issue_description,
-            "sample_feedback": sample_feedback[:5],  # Limit to 5 samples
-            "session_context": session_context,
-            "status": "open",
-            "priority": "high" if len(sample_feedback) >= 10 else "medium",
-            "assigned_to": None,
-            "resolved": False
-        }
-        
-        await self.db.insert_one("improvement_opportunities", opportunity)
-        
-        logger.info(f"Created improvement opportunity: {opportunity['opportunity_id']}")
-    
-    async def get_feedback_summary(
-        self,
-        agent_name: Optional[str] = None,
-        days: int = 7
-    ) -> Dict[str, Any]:
-        """Get summary of feedback for a time period"""
-        
-        start_date = datetime.now(datetime.UTC) - timedelta(days=days)
-        
-        query = {"timestamp": {"$gte": start_date}}
-        if agent_name:
-            query["agent_name"] = agent_name
-        
-        all_feedback = await self.db.find_many("user_feedback", query)
-        
-        if not all_feedback:
-            return {
-                "period_days": days,
-                "total_feedback": 0,
-                "message": "No feedback in this period"
-            }
-        
-        # Calculate metrics
-        total = len(all_feedback)
-        positive = sum(
-            1 for fb in all_feedback
-            if fb.get("feedback_type") == FeedbackType.THUMBS_UP or
-               (fb.get("rating") and fb["rating"] >= 4)
-        )
-        negative = sum(
-            1 for fb in all_feedback
-            if fb.get("feedback_type") == FeedbackType.THUMBS_DOWN or
-               (fb.get("rating") and fb["rating"] <= 2)
-        )
-        
-        ratings = [fb["rating"] for fb in all_feedback if fb.get("rating")]
-        avg_rating = sum(ratings) / len(ratings) if ratings else None
-        
-        # Breakdown by category
-        category_counts = Counter(
-            fb.get("category") for fb in all_feedback if fb.get("category")
-        )
-        
-        # Breakdown by intent
-        intent_feedback = defaultdict(lambda: {"positive": 0, "negative": 0, "total": 0})
-        for fb in all_feedback:
-            intent = fb.get("intent", "unknown")
-            intent_feedback[intent]["total"] += 1
-            if fb.get("feedback_type") == FeedbackType.THUMBS_UP or (fb.get("rating") and fb["rating"] >= 4):
-                intent_feedback[intent]["positive"] += 1
-            elif fb.get("feedback_type") == FeedbackType.THUMBS_DOWN or (fb.get("rating") and fb["rating"] <= 2):
-                intent_feedback[intent]["negative"] += 1
-        
-        return {
-            "period_days": days,
-            "total_feedback": total,
-            "positive_feedback": positive,
-            "negative_feedback": negative,
-            "neutral_feedback": total - positive - negative,
-            "positive_rate": positive / total if total > 0 else 0,
-            "avg_rating": avg_rating,
-            "category_breakdown": dict(category_counts),
-            "intent_breakdown": dict(intent_feedback),
-            "agent_name": agent_name or "all"
+                "agent_name": agent_name or "all"
         }
     
     async def generate_analytics(
         self,
         period_days: int = 30
     ) -> FeedbackAnalytics:
-        """Generate comprehensive feedback analytics"""
+        """
+        Generate comprehensive feedback analytics.
         
-        end_date = datetime.now(datetime.UTC)
+        Args:
+            period_days: Number of days to analyze
+        
+        Returns:
+            FeedbackAnalytics object
+        """
+        end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=period_days)
         
         all_feedback = await self.db.find_many(
@@ -263,12 +179,12 @@ class FeedbackService:
         total_count = len(all_feedback)
         positive_count = sum(
             1 for fb in all_feedback
-            if fb.get("feedback_type") == FeedbackType.THUMBS_UP or
+            if fb.get("feedback_type") == "thumbs_up" or
                (fb.get("rating") and fb["rating"] >= 4)
         )
         negative_count = sum(
             1 for fb in all_feedback
-            if fb.get("feedback_type") == FeedbackType.THUMBS_DOWN or
+            if fb.get("feedback_type") == "thumbs_down" or
                (fb.get("rating") and fb["rating"] <= 2)
         )
         
@@ -287,9 +203,9 @@ class FeedbackService:
             agent = fb.get("agent_name", "unknown")
             feedback_by_agent[agent]["total"] += 1
             
-            if fb.get("feedback_type") == FeedbackType.THUMBS_UP or (fb.get("rating") and fb["rating"] >= 4):
+            if fb.get("feedback_type") == "thumbs_up" or (fb.get("rating") and fb["rating"] >= 4):
                 feedback_by_agent[agent]["positive"] += 1
-            elif fb.get("feedback_type") == FeedbackType.THUMBS_DOWN or (fb.get("rating") and fb["rating"] <= 2):
+            elif fb.get("feedback_type") == "thumbs_down" or (fb.get("rating") and fb["rating"] <= 2):
                 feedback_by_agent[agent]["negative"] += 1
         
         # By intent
@@ -303,15 +219,15 @@ class FeedbackService:
             intent = fb.get("intent", "unknown")
             feedback_by_intent[intent]["total"] += 1
             
-            if fb.get("feedback_type") == FeedbackType.THUMBS_UP or (fb.get("rating") and fb["rating"] >= 4):
+            if fb.get("feedback_type") == "thumbs_up" or (fb.get("rating") and fb["rating"] >= 4):
                 feedback_by_intent[intent]["positive"] += 1
-            elif fb.get("feedback_type") == FeedbackType.THUMBS_DOWN or (fb.get("rating") and fb["rating"] <= 2):
+            elif fb.get("feedback_type") == "thumbs_down" or (fb.get("rating") and fb["rating"] <= 2):
                 feedback_by_intent[intent]["negative"] += 1
         
         # Identify top issues
         negative_feedback = [
             fb for fb in all_feedback
-            if fb.get("feedback_type") == FeedbackType.THUMBS_DOWN or
+            if fb.get("feedback_type") == "thumbs_down" or
                (fb.get("rating") and fb["rating"] <= 2)
         ]
         
@@ -353,10 +269,10 @@ class FeedbackService:
         )
         
         # Save analytics
-        await self.db.insert_one("feedback_analytics", analytics.model_dump())
+        await self.db.insert_one("feedback_analytics", analytics.model_dump(exclude={"id"}))
         
         logger.info(
-            f"Generated feedback analytics for {period_days} days: "
+            f"📊 Generated feedback analytics for {period_days} days: "
             f"{total_count} total, {positive_count} positive, {negative_count} negative"
         )
         
@@ -368,8 +284,17 @@ class FeedbackService:
         priority: Optional[str] = None,
         limit: int = 20
     ) -> List[Dict[str, Any]]:
-        """Get improvement opportunities for review"""
+        """
+        Get improvement opportunities for review.
         
+        Args:
+            status: Filter by status (open/in_progress/resolved)
+            priority: Filter by priority (high/medium/low)
+            limit: Maximum number to return
+        
+        Returns:
+            List of improvement opportunities
+        """
         query = {"status": status}
         if priority:
             query["priority"] = priority
@@ -391,8 +316,16 @@ class FeedbackService:
         resolved: Optional[bool] = None,
         resolution_notes: Optional[str] = None
     ):
-        """Update an improvement opportunity"""
+        """
+        Update an improvement opportunity.
         
+        Args:
+            opportunity_id: Opportunity ID to update
+            status: New status
+            assigned_to: Person assigned
+            resolved: Mark as resolved
+            resolution_notes: Resolution notes
+        """
         update_fields = {}
         if status:
             update_fields["status"] = status
@@ -404,7 +337,7 @@ class FeedbackService:
             update_fields["resolution_notes"] = resolution_notes
         
         if update_fields:
-            update_fields["updated_at"] = datetime.now(datetime.UTC)
+            update_fields["updated_at"] = datetime.now(timezone.utc)
             
             await self.db.update_one(
                 "improvement_opportunities",
@@ -412,4 +345,146 @@ class FeedbackService:
                 {"$set": update_fields}
             )
             
-            logger.info(f"Updated improvement opportunity {opportunity_id}: {update_fields}")
+            logger.info(f"✏️ Updated improvement opportunity {opportunity_id}: {update_fields}")
+_name": feedback.agent_name,
+                "intent": feedback.intent,
+                "feedback_type": {"$in": ["thumbs_down", "rating"]},
+                "timestamp": {"$gte": datetime.now(timezone.utc) - timedelta(days=7)}
+            }
+        )
+        
+        if len(similar_feedback) >= 5:  # Threshold for pattern detection
+            logger.warning(
+                f"⚠️ Pattern detected: Multiple negative feedback for "
+                f"{feedback.agent_name}/{feedback.intent} "
+                f"({len(similar_feedback)} occurrences in last 7 days)"
+            )
+            
+            # Create improvement opportunity
+            await self._create_improvement_opportunity(
+                agent_name=feedback.agent_name,
+                intent=feedback.intent or "unknown",
+                issue_description=f"High negative feedback rate: {len(similar_feedback)} occurrences",
+                sample_feedback=[fb.get("feedback_text") for fb in similar_feedback if fb.get("feedback_text")]
+            )
+    
+    async def _flag_unnecessary_escalation(self, feedback: EscalationFeedback):
+        """Flag unnecessary escalations for training data improvement"""
+        
+        logger.warning(
+            f"⚠️ Unnecessary escalation flagged: ticket {feedback.ticket_id} "
+            f"(reason: {feedback.escalation_reason})"
+        )
+        
+        # Retrieve the full session to understand what could have been done differently
+        session = await self.db.find_one("sessions", {"session_id": feedback.session_id})
+        
+        if session and feedback.could_have_been_automated:
+            await self._create_improvement_opportunity(
+                agent_name="escalation_handler",
+                intent=feedback.escalation_reason,
+                issue_description="Could have been automated",
+                sample_feedback=[feedback.feedback_text] if feedback.feedback_text else [],
+                session_context=session
+            )
+    
+    async def _create_improvement_opportunity(
+        self,
+        agent_name: str,
+        intent: str,
+        issue_description: str,
+        sample_feedback: List[str],
+        session_context: Optional[Dict[str, Any]] = None
+    ):
+        """Create an improvement opportunity for review"""
+        
+        opportunity = {
+            "opportunity_id": str(uuid.uuid4()),
+            "created_at": datetime.now(timezone.utc),
+            "agent_name": agent_name,
+            "intent": intent,
+            "issue_description": issue_description,
+            "sample_feedback": sample_feedback[:5],  # Limit to 5 samples
+            "session_context": session_context,
+            "status": "open",
+            "priority": "high" if len(sample_feedback) >= 10 else "medium",
+            "assigned_to": None,
+            "resolved": False
+        }
+        
+        await self.db.insert_one("improvement_opportunities", opportunity)
+        
+        logger.info(f"💡 Created improvement opportunity: {opportunity['opportunity_id']}")
+    
+    async def get_feedback_summary(
+        self,
+        agent_name: Optional[str] = None,
+        days: int = 7
+    ) -> Dict[str, Any]:
+        """
+        Get summary of feedback for a time period.
+        
+        Args:
+            agent_name: Optional agent name to filter by
+            days: Number of days to include
+        
+        Returns:
+            Feedback summary with metrics
+        """
+        start_date = datetime.now(timezone.utc) - timedelta(days=days)
+        
+        query = {"timestamp": {"$gte": start_date}}
+        if agent_name:
+            query["agent_name"] = agent_name
+        
+        all_feedback = await self.db.find_many("user_feedback", query)
+        
+        if not all_feedback:
+            return {
+                "period_days": days,
+                "total_feedback": 0,
+                "message": "No feedback in this period"
+            }
+        
+        # Calculate metrics
+        total = len(all_feedback)
+        positive = sum(
+            1 for fb in all_feedback
+            if fb.get("feedback_type") == "thumbs_up" or
+               (fb.get("rating") and fb["rating"] >= 4)
+        )
+        negative = sum(
+            1 for fb in all_feedback
+            if fb.get("feedback_type") == "thumbs_down" or
+               (fb.get("rating") and fb["rating"] <= 2)
+        )
+        
+        ratings = [fb["rating"] for fb in all_feedback if fb.get("rating")]
+        avg_rating = sum(ratings) / len(ratings) if ratings else None
+        
+        # Breakdown by category
+        category_counts = Counter(
+            fb.get("category") for fb in all_feedback if fb.get("category")
+        )
+        
+        # Breakdown by intent
+        intent_feedback = defaultdict(lambda: {"positive": 0, "negative": 0, "total": 0})
+        for fb in all_feedback:
+            intent = fb.get("intent", "unknown")
+            intent_feedback[intent]["total"] += 1
+            if fb.get("feedback_type") == "thumbs_up" or (fb.get("rating") and fb["rating"] >= 4):
+                intent_feedback[intent]["positive"] += 1
+            elif fb.get("feedback_type") == "thumbs_down" or (fb.get("rating") and fb["rating"] <= 2):
+                intent_feedback[intent]["negative"] += 1
+        
+        return {
+            "period_days": days,
+            "total_feedback": total,
+            "positive_feedback": positive,
+            "negative_feedback": negative,
+            "neutral_feedback": total - positive - negative,
+            "positive_rate": positive / total if total > 0 else 0,
+            "avg_rating": avg_rating,
+            "category_breakdown": dict(category_counts),
+            "intent_breakdown": dict(intent_feedback),
+            "agent
